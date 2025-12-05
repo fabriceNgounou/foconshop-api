@@ -1,0 +1,70 @@
+// src/auth/auth.service.ts
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { RegisterDto } from './dto/register.dto';
+import * as bcrypt from 'bcrypt';
+import { JwtService } from '@nestjs/jwt';
+import { LoginDto } from './dto/login.dto';
+
+@Injectable()
+export class AuthService {
+  constructor(private prisma: PrismaService, private jwtService: JwtService) {}
+
+  private async hashPassword(password: string) {
+    const saltRounds = 10;
+    return bcrypt.hash(password, saltRounds);
+  }
+
+  private async comparePassword(password: string, hash: string) {
+    return bcrypt.compare(password, hash);
+  }
+
+  async register(dto: RegisterDto) {
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) throw new BadRequestException('Email already in use');
+
+    const hashed = await this.hashPassword(dto.password);
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        phone: dto.phone ?? null,
+        password: hashed,
+        // role default is CLIENT per ton schema.prisma
+      },
+      select: { id: true, email: true, role: true, createdAt: true },
+    });
+
+    return { user };
+  }
+
+  async validateUser(email: string, pass: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return null;
+    const matched = await this.comparePassword(pass, user.password);
+    if (!matched) return null;
+    // remove password before returning
+    const { password, ...rest } = user as any;
+    return rest;
+  }
+
+  async login(dto: LoginDto) {
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+
+    const valid = await this.comparePassword(dto.password, user.password);
+    if (!valid) throw new UnauthorizedException('Invalid credentials');
+
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    const accessToken = this.jwtService.sign(payload);
+
+    return { access_token: accessToken, user: { id: user.id, email: user.email, role: user.role } };
+  }
+
+  // helper pour /auth/me
+  async getProfile(userId: number) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, phone: true, role: true, createdAt: true },
+    });
+  }
+}
