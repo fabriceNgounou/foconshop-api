@@ -1,19 +1,15 @@
 // src/auth/auth.controller.ts
-import { 
-  Controller, 
-  Post, 
-  Body, 
-  HttpCode, 
-  HttpStatus, 
-  Get, 
-  UseGuards, 
-  Req 
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -28,14 +24,6 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Post('login')
   async login(@Body() dto: LoginDto) {
-    return await this.authService.login(dto);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('me')
-  async me(@Req() req: any) {
-    // req.user est ajouté automatiquement par JwtStrategy
-    const userId = req.user.sub;
-    return this.authService.getProfile(Number(userId));
+    return this.authService.login(dto);
   }
 }

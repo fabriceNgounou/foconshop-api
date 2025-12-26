@@ -48,23 +48,40 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+     const user = await this.prisma.user.findUnique({
+       where: { email: dto.email },
+       include: {
+         vendor: true, // ⬅️ important
+       },
+     });
+   
+     if (!user) {
+       throw new UnauthorizedException('Invalid credentials');
+     }
+   
+     const valid = await this.comparePassword(dto.password, user.password);
+     if (!valid) {
+       throw new UnauthorizedException('Invalid credentials');
+     }
+   
+     const payload = {
+       sub: user.id,
+       email: user.email,
+       role: user.role,
+       vendorId: user.vendor?.id ?? null, // ⬅️ clé manquante
+     };
+   
+     const accessToken = this.jwtService.sign(payload);
+   
+     return {
+       access_token: accessToken,
+       user: {
+         id: user.id,
+         email: user.email,
+         role: user.role,
+         vendorId: user.vendor?.id ?? null,
+       },
+     };
+   }
 
-    const valid = await this.comparePassword(dto.password, user.password);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
-
-    const payload = { sub: user.id, email: user.email, role: user.role };
-    const accessToken = this.jwtService.sign(payload);
-
-    return { access_token: accessToken, user: { id: user.id, email: user.email, role: user.role } };
-  }
-
-  // helper pour /auth/me
-  async getProfile(userId: number) {
-    return this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, phone: true, role: true, createdAt: true },
-    });
-  }
 }

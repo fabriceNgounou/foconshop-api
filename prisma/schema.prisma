@@ -27,7 +27,7 @@ model User {
   role      Role           @default(CLIENT)
   createdAt DateTime       @default(now())
   vendor    VendorProfile?
-  otpCodes  OtpCode[] // Ajouté: relation avec OtpCode
+  otpCodes  OtpCode[]
 }
 
 model VendorProfile {
@@ -64,7 +64,46 @@ model Product {
   id          Int            @id @default(autoincrement())
   vendor      VendorProfile? @relation(fields: [vendorId], references: [id])
   vendorId    Int?
+  category    Category?      @relation(fields: [categoryId], references: [id])
+  categoryId  Int?
   title       String
   description String?
   createdAt   DateTime       @default(now())
+
+  variants    ProductVariant[]
+
+  media       Media[]
 }
+
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model ProductVariant {
+  id        Int      @id @default(autoincrement())
+  product   Product  @relation(fields: [productId], references: [id])
+  productId Int
+
+  name      String  
+  price     Float
+  stock     Int
+
+  createdAt DateTime @default(now())
+}
+
+model Media {
+  id        Int      @id @default(autoincrement())
+  url       String
+  type      String   // IMAGE (prévu pour extension future)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId Int
+  createdAt DateTime @default(now())
+}
+
+
+
