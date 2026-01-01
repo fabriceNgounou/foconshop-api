@@ -19,8 +19,15 @@ enum VendorStatus {
   REJECTED
 }
 
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
 model User {
   id        Int            @id @default(autoincrement())
+  username  String?        @unique
   email     String         @unique
   phone     String?        @unique
   password  String
@@ -28,6 +35,10 @@ model User {
   createdAt DateTime       @default(now())
   vendor    VendorProfile?
   otpCodes  OtpCode[]
+
+  cart      Cart?
+  orders    Order[]
+  addresses Address[]
 }
 
 model VendorProfile {
@@ -70,11 +81,10 @@ model Product {
   description String?
   createdAt   DateTime       @default(now())
 
-  variants    ProductVariant[]
+  variants ProductVariant[]
 
-  media       Media[]
+  media Media[]
 }
-
 
 model Category {
   id        Int       @id @default(autoincrement())
@@ -85,25 +95,85 @@ model Category {
 }
 
 model ProductVariant {
-  id        Int      @id @default(autoincrement())
-  product   Product  @relation(fields: [productId], references: [id])
+  id        Int     @id @default(autoincrement())
+  product   Product @relation(fields: [productId], references: [id])
   productId Int
 
-  name      String  
-  price     Float
-  stock     Int
+  name  String
+  price Float
+  stock Int
 
   createdAt DateTime @default(now())
+
+  CartItem  CartItem[]
+  OrderItem OrderItem[]
 }
 
 model Media {
   id        Int      @id @default(autoincrement())
   url       String
-  type      String   // IMAGE (prévu pour extension future)
+  type      String // IMAGE (prévu pour extension future)
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId Int
   createdAt DateTime @default(now())
 }
 
+model Cart {
+  id        Int        @id @default(autoincrement())
+  user      User       @relation(fields: [userId], references: [id])
+  userId    Int        @unique
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
 
+model CartItem {
+  id             Int            @id @default(autoincrement())
+  cart           Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId         Int
+  productVariant ProductVariant @relation(fields: [variantId], references: [id])
+  variantId      Int
+  quantity       Int
+  unitPrice      Float // prix figé
+  createdAt      DateTime       @default(now())
 
+  @@unique([cartId, variantId])
+}
+
+model Address {
+  id          Int      @id @default(autoincrement())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      Int
+  fullName    String
+  phone       String
+  addressLine String
+  city        String
+  country     String
+  createdAt   DateTime @default(now())
+  Order       Order[]
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  user        User        @relation(fields: [userId], references: [id])
+  userId      Int
+  address     Address     @relation(fields: [addressId], references: [id])
+  addressId   Int
+  status      OrderStatus @default(PENDING)
+  totalAmount Float
+  items       OrderItem[]
+  createdAt   DateTime    @default(now())
+}
+
+model OrderItem {
+  id      Int   @id @default(autoincrement())
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId Int
+
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  variantId Int
+
+  name      String // snapshot du nom
+  unitPrice Float // snapshot du prix
+  quantity  Int
+}

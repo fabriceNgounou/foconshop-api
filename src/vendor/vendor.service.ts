@@ -71,19 +71,35 @@ export class VendorService {
   }
 
   async updateStatus(vendorId: number, status: VendorStatus) {
-  const vendor = await this.prisma.vendorProfile.findUnique({
-    where: { id: vendorId },
-  });
+    const vendor = await this.prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+    });
 
-  if (!vendor) {
-    throw new NotFoundException('Vendor not found');
+    if (!vendor) {
+      throw new NotFoundException('Vendor not found');
+    }
+
+    // 🔒 Empêcher une double validation
+    if (vendor.status === 'APPROVED') {
+      throw new BadRequestException(
+        'Vendor is already approved',
+      );
+    }
+
+    let codeUnique = vendor.codeUnique;
+
+    if (status === 'APPROVED' && !codeUnique) {
+      codeUnique = this.generateCodeUnique(vendor.id);
+    }
+
+    return this.prisma.vendorProfile.update({
+      where: { id: vendorId },
+      data: {
+        status,
+        codeUnique,
+      },
+    });
   }
-
-  return await this.prisma.vendorProfile.update({
-    where: { id: vendorId },
-    data: { status },
-  });
-}
 
   
 }

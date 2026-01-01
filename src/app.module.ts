@@ -9,6 +9,10 @@ import { ProductModule } from './product/product.module';
 import { CategoryModule } from './category/category.module';
 import { ProductVariantModule } from './product-variant/product-variant.module';
 import { MediaModule } from './media/media.module';
+import { CartModule } from './cart/cart.module';
+import { CheckoutModule } from './checkout/checkout.module';
+import { AddressModule } from './address/address.module';
+import { OrdersModule } from './orders/orders.moule';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule,
@@ -16,7 +20,11 @@ import { MediaModule } from './media/media.module';
      VendorModule,
     CategoryModule,
      ProductVariantModule,
-    MediaModule],
+    MediaModule,
+    CartModule,
+    CheckoutModule,
+    AddressModule,
+    OrdersModule,],
   controllers: [AppController],
   providers: [AppService,PrismaService],
 })
