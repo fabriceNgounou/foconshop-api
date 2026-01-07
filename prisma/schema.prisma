@@ -82,7 +82,9 @@ model Product {
   createdAt   DateTime       @default(now())
 
   variants ProductVariant[]
+  variants ProductVariant[]
 
+  media Media[]
   media Media[]
 }
 
@@ -97,8 +99,13 @@ model Category {
 model ProductVariant {
   id        Int     @id @default(autoincrement())
   product   Product @relation(fields: [productId], references: [id])
+  id        Int     @id @default(autoincrement())
+  product   Product @relation(fields: [productId], references: [id])
   productId Int
 
+  name  String
+  price Float
+  stock Int
   name  String
   price Float
   stock Int
@@ -112,6 +119,7 @@ model ProductVariant {
 model Media {
   id        Int      @id @default(autoincrement())
   url       String
+  type      String // IMAGE (prévu pour extension future)
   type      String // IMAGE (prévu pour extension future)
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId Int
