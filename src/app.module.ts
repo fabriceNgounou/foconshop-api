@@ -12,7 +12,8 @@ import { MediaModule } from './media/media.module';
 import { CartModule } from './cart/cart.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { AddressModule } from './address/address.module';
-import { OrdersModule } from './orders/orders.moule';
+import { OrdersModule } from './orders/orders.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule,
@@ -24,7 +25,8 @@ import { OrdersModule } from './orders/orders.moule';
     CartModule,
     CheckoutModule,
     AddressModule,
-    OrdersModule,],
+    OrdersModule,
+    PaymentsModule,],
   controllers: [AppController],
   providers: [AppService,PrismaService],
 })

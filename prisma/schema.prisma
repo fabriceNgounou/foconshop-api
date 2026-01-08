@@ -163,6 +163,7 @@ model Order {
   totalAmount Float
   items       OrderItem[]
   createdAt   DateTime    @default(now())
+  payment     Payment?
 }
 
 model OrderItem {
@@ -176,4 +177,54 @@ model OrderItem {
   name      String // snapshot du nom
   unitPrice Float // snapshot du prix
   quantity  Int
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentMethod {
+  ORANGE_MONEY
+  MTN_MOMO
+}
+
+enum PaymentType {
+  FULL
+  DEPOSIT
+}
+
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  order         Order         @relation(fields: [orderId], references: [id])
+  orderId       Int           @unique
+
+  method        PaymentMethod
+  type          PaymentType   @default(FULL)
+  amount        Float         // montant payé (100% ou 20%)
+  status        PaymentStatus @default(PENDING)
+
+  attempts      PaymentAttempt[]
+  createdAt     DateTime      @default(now())
+}
+
+
+model PaymentAttempt {
+  id          Int           @id @default(autoincrement())
+  payment     Payment       @relation(fields: [paymentId], references: [id])
+  paymentId   Int
+
+  providerRef String?       // ID Orange / MTN
+  status      PaymentStatus
+  response    Json?
+  createdAt   DateTime      @default(now())
+}
+
+model TransactionLog {
+  id        Int      @id @default(autoincrement())
+  type      String   // INIT, CALLBACK, ERROR
+  payload   Json
+  createdAt DateTime @default(now())
 }
