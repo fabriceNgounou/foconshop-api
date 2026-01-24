@@ -21,8 +21,7 @@ export class OrdersController {
    */
   @Get('me')
   getMyOrders(@Req() req: any) {
-    const userId = req.user.sub;
-    return this.ordersService.findMyOrders(userId);
+    return this.ordersService.findMyOrders(req.user.sub);
   }
 
   /**
@@ -33,18 +32,12 @@ export class OrdersController {
     @Param('id', ParseIntPipe) id: number,
     @Req() req: any,
   ) {
-    const userId = req.user.sub;
-    return this.ordersService.findOneMyOrder(id, userId);
+    return this.ordersService.findOneMyOrder(id, req.user.sub);
   }
 
-  @Patch(':id/pay')
-  pay(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req: any,
-  ) {
-    return this.ordersService.markAsPaid(id, req.user.sub);
-  }
-
+  /**
+   * PATCH /orders/:id/cancel
+   */
   @Patch(':id/cancel')
   cancel(
     @Param('id', ParseIntPipe) id: number,
@@ -53,5 +46,11 @@ export class OrdersController {
     return this.ordersService.cancel(id, req.user.sub);
   }
 
-
+  /**
+   * GET /orders/:id/status
+   */
+  @Get(':id/status')
+  getStatus(@Param('id') id: string, @Req() req: any) {
+    return this.ordersService.getOrderStatus(+id, req.user.sub);
+  }
 }

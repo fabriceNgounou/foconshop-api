@@ -39,6 +39,13 @@ model User {
   cart      Cart?
   orders    Order[]
   addresses Address[]
+
+  loyaltyWallet LoyaltyWallet?
+  loyaltyEntries LoyaltyEntry[]
+  couponUsages   CouponUsage[]
+
+  referralsSent     Referral[] @relation("Referrer")
+  referralsReceived Referral[] @relation("Referee")
 }
 
 model VendorProfile {
@@ -164,6 +171,7 @@ model Order {
   items       OrderItem[]
   createdAt   DateTime    @default(now())
   payment     Payment?
+  shipment    Shipment?
 }
 
 model OrderItem {
@@ -228,3 +236,126 @@ model TransactionLog {
   payload   Json
   createdAt DateTime @default(now())
 }
+
+enum ShipmentStatus {
+  CREATED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+model Shipment {
+  id        Int            @id @default(autoincrement())
+  order     Order          @relation(fields: [orderId], references: [id])
+  orderId   Int            @unique
+  status    ShipmentStatus @default(CREATED)
+  events    TrackingEvent[]
+  createdAt DateTime       @default(now())
+}
+
+model TrackingEvent {
+  id          Int      @id @default(autoincrement())
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  shipmentId  Int
+  label       String
+  createdAt   DateTime @default(now())
+}
+
+enum LoyaltyEntryType {
+  EARN
+  SPEND
+}
+
+enum LoyaltySource {
+  ORDER
+  COUPON
+  REFERRAL
+  SIGNUP
+  ADMIN
+}
+
+enum CouponType {
+  FIXED
+  PERCENTAGE
+}
+
+model LoyaltyWallet {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int      @unique
+
+  balance   Int      @default(0)
+
+  entries   LoyaltyEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LoyaltyEntry {
+  id        Int              @id @default(autoincrement())
+
+  wallet    LoyaltyWallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  walletId  Int
+
+  user      User             @relation(fields: [userId], references: [id])
+  userId    Int
+
+  type      LoyaltyEntryType
+  source    LoyaltySource
+
+  points    Int
+  reference String?          // ex: ORDER_12, COUPON_XYZ
+
+  createdAt DateTime         @default(now())
+}
+
+model Coupon {
+  id          Int        @id @default(autoincrement())
+  code        String     @unique
+
+  type        CouponType
+  value       Float      // montant ou pourcentage
+
+  maxUses     Int?
+  usedCount   Int        @default(0)
+
+  expiresAt   DateTime?
+  isActive    Boolean    @default(true)
+
+  usages      CouponUsage[]
+
+  createdAt   DateTime   @default(now())
+}
+
+model CouponUsage {
+  id        Int      @id @default(autoincrement())
+
+  coupon    Coupon   @relation(fields: [couponId], references: [id])
+  couponId  Int
+
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+
+  usedAt    DateTime @default(now())
+
+  @@unique([couponId, userId])
+}
+
+model Referral {
+  id          Int      @id @default(autoincrement())
+
+  referrer    User     @relation("Referrer", fields: [referrerId], references: [id])
+  referrerId  Int
+
+  referee     User     @relation("Referee", fields: [refereeId], references: [id])
+  refereeId   Int
+
+  rewardGiven Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([referrerId, refereeId])
+}
+
+

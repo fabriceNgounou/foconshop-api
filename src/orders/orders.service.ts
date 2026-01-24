@@ -1,7 +1,8 @@
-// src/orders/orders.service.ts
-
-import { Injectable, NotFoundException, BadRequestException,
-  ForbiddenException, } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrderStatus } from '@prisma/client';
 
@@ -18,6 +19,7 @@ export class OrdersService {
       include: {
         items: true,
         address: true,
+        shipment: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -37,6 +39,13 @@ export class OrdersService {
       include: {
         items: true,
         address: true,
+        shipment: {
+          include: {
+            events: {
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        },
       },
     });
 
@@ -47,27 +56,9 @@ export class OrdersService {
     return order;
   }
 
-  async markAsPaid(orderId: number, userId: number) {
-    const order = await this.prisma.order.findFirst({
-      where: { id: orderId, userId },
-    });
-
-    if (!order) {
-      throw new NotFoundException('Commande introuvable');
-    }
-
-    if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException(
-        'Cette commande ne peut plus être payée',
-      );
-    }
-
-    return this.prisma.order.update({
-      where: { id: orderId },
-      data: { status: OrderStatus.PAID },
-    });
-  }
-
+  /**
+   * Annuler une commande PENDING
+   */
   async cancel(orderId: number, userId: number) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
@@ -87,5 +78,30 @@ export class OrdersService {
       where: { id: orderId },
       data: { status: OrderStatus.CANCELLED },
     });
+  }
+
+  /**
+   * Statut commande + livraison
+   */
+  async getOrderStatus(orderId: number, userId: number) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        userId,
+      },
+      include: {
+        shipment: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Commande introuvable');
+    }
+
+    return {
+      orderId: order.id,
+      orderStatus: order.status,
+      shipmentStatus: order.shipment?.status ?? null,
+    };
   }
 }

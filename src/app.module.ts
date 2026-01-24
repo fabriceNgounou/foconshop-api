@@ -14,6 +14,10 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { AddressModule } from './address/address.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { ShipmentsModule } from './shipments/shipments.module';
+import { LoyaltyModule } from './loyalty/loyalty.module';
+import { ReferralModule } from './referal/referral.module';
+import { CouponsModule } from './coupons/coupons.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule,
@@ -26,7 +30,11 @@ import { PaymentsModule } from './payments/payments.module';
     CheckoutModule,
     AddressModule,
     OrdersModule,
-    PaymentsModule,],
+    PaymentsModule,
+    ShipmentsModule,
+    LoyaltyModule,
+    ReferralModule,
+    CouponsModule],
   controllers: [AppController],
   providers: [AppService,PrismaService],
 })

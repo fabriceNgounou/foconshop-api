@@ -7,12 +7,14 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { LoyaltyModule } from 'src/loyalty/loyalty.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
 
     PassportModule,
+    LoyaltyModule,
 
     JwtModule.registerAsync({
       imports: [ConfigModule],

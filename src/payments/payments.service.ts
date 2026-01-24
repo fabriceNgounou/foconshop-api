@@ -9,14 +9,19 @@ import {
   PaymentStatus,
   OrderStatus,
   PaymentType,
+  LoyaltySource,
 } from '@prisma/client';
+import { LoyaltyService } from '../loyalty/loyalty.service'; // ⭐
 
 @Injectable()
 export class PaymentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly loyaltyService: LoyaltyService, // ⭐
+  ) {}
 
   /**
-   * INIT PAYMENT (100% ou 20%)
+   * INIT PAYMENT (FULL ou DEPOSIT)
    */
   async initPayment(userId: number, dto: InitPaymentDto) {
     const order = await this.prisma.order.findFirst({
@@ -28,16 +33,20 @@ export class PaymentsService {
     });
 
     if (!order) {
-      throw new NotFoundException('Commande introuvable ou déjà payée');
+      throw new NotFoundException(
+        'Commande introuvable ou déjà payée',
+      );
     }
 
-    // Empêcher double paiement
-    const existingPayment = await this.prisma.payment.findUnique({
-      where: { orderId: order.id },
-    });
+    const existingPayment =
+      await this.prisma.payment.findUnique({
+        where: { orderId: order.id },
+      });
 
     if (existingPayment) {
-      throw new BadRequestException('Paiement déjà initié');
+      throw new BadRequestException(
+        'Paiement déjà initié',
+      );
     }
 
     const amount =
@@ -85,77 +94,145 @@ export class PaymentsService {
   }
 
   /**
-    * WEBHOOK SIMULÉ (Orange / MTN)
-    */
-   async handleWebhook(reference: string, status: PaymentStatus) {
-     if (!reference.startsWith('PAY-')) {
-       throw new BadRequestException('Référence invalide');
-     }
-   
-     const paymentId = Number(reference.replace('PAY-', ''));
-   
-     const payment = await this.prisma.payment.findUnique({
-       where: { id: paymentId },
-     });
-   
-     if (!payment) {
-       throw new NotFoundException('Paiement introuvable');
-     }
-   
-     if (payment.status === PaymentStatus.SUCCESS) {
-       return {
-         message: 'Paiement déjà confirmé',
-         paymentStatus: payment.status,
-       };
-     }
-   
-     return this.prisma.$transaction(async (tx) => {
-       await tx.paymentAttempt.create({
-         data: {
-           paymentId: payment.id,
-           status,
-         },
-       });
-   
-       await tx.transactionLog.create({
-         data: {
-           type:
-             status === PaymentStatus.SUCCESS
-               ? 'WEBHOOK_SUCCESS'
-               : 'WEBHOOK_FAILED',
-           payload: {
-             paymentId: payment.id,
-             reference,
-             status,
-           },
-         },
-       });
-   
-       const updatedPayment = await tx.payment.update({
-         where: { id: payment.id },
-         data: { status },
-       });
-   
-       let updatedOrderStatus: OrderStatus | null = null;
-   
-       if (
-         status === PaymentStatus.SUCCESS &&
-         payment.type === PaymentType.FULL
-       ) {
-         const updatedOrder = await tx.order.update({
-           where: { id: payment.orderId },
-           data: { status: OrderStatus.PAID },
-         });
-   
-         updatedOrderStatus = updatedOrder.status;
-       }
-   
-       return {
-         message: 'Webhook traité',
-         paymentStatus: updatedPayment.status,
-         orderStatus: updatedOrderStatus ?? OrderStatus.PENDING,
-       };
-     });
- }
+   * WEBHOOK (Orange / MTN)
+   */
+  async handleWebhook(
+    reference: string,
+    status: PaymentStatus,
+  ) {
+    if (!reference.startsWith('PAY-')) {
+      throw new BadRequestException(
+        'Référence invalide',
+      );
+    }
 
+    const paymentId = Number(
+      reference.replace('PAY-', ''),
+    );
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: { order: true },
+    });
+
+    if (!payment) {
+      throw new NotFoundException(
+        'Paiement introuvable',
+      );
+    }
+
+    if (payment.status === PaymentStatus.SUCCESS) {
+      return {
+        message: 'Paiement déjà confirmé',
+        paymentStatus: payment.status,
+        orderStatus: payment.order.status,
+      };
+    }
+
+    return this.prisma.$transaction(async tx => {
+      // Tentative
+      await tx.paymentAttempt.create({
+        data: {
+          paymentId: payment.id,
+          status,
+        },
+      });
+
+      await tx.transactionLog.create({
+        data: {
+          type:
+            status === PaymentStatus.SUCCESS
+              ? 'WEBHOOK_SUCCESS'
+              : 'WEBHOOK_FAILED',
+          payload: {
+            paymentId: payment.id,
+            reference,
+            status,
+          },
+        },
+      });
+
+      const updatedPayment = await tx.payment.update({
+        where: { id: payment.id },
+        data: { status },
+      });
+
+      let updatedOrderStatus: OrderStatus | null = null;
+
+      // ⭐ Cas paiement FULL réussi
+      if (
+        status === PaymentStatus.SUCCESS &&
+        payment.type === PaymentType.FULL
+      ) {
+        const updatedOrder = await tx.order.update({
+          where: { id: payment.orderId },
+          data: { status: OrderStatus.PAID },
+        });
+
+        updatedOrderStatus = updatedOrder.status;
+
+        // ⭐ Shipment
+        const existingShipment =
+          await tx.shipment.findUnique({
+            where: { orderId: payment.orderId },
+          });
+
+        if (!existingShipment) {
+          await tx.shipment.create({
+            data: {
+              orderId: payment.orderId,
+              status: 'CREATED',
+              events: {
+                create: {
+                  label: 'Commande préparée',
+                },
+              },
+            },
+          });
+        }
+
+        // ⭐ FIDÉLITÉ (paiement)
+        const points = Math.floor(
+          payment.amount / 100,
+        );
+
+        await this.loyaltyService.addPoints(
+          payment.order.userId,
+          points,
+          LoyaltySource.ORDER,
+          `ORDER_${payment.orderId}`,
+        );
+
+        // ⭐ PARRAINAGE
+    const referral = await tx.referral.findFirst({
+      where: {
+        refereeId: payment.order.userId,
+        rewardGiven: false,
+      },
+    });
+    
+    if (referral) {
+      await this.loyaltyService.addPoints(
+        referral.referrerId, // 👈 le parrain
+        200,
+        LoyaltySource.REFERRAL,
+        `REFERRAL_${payment.order.userId}`,
+      );
+    
+      await tx.referral.update({
+        where: { id: referral.id },
+        data: { rewardGiven: true },
+      });
+     }
+    }
+
+      return {
+        message: 'Webhook traité',
+        paymentStatus: updatedPayment.status,
+        orderStatus:
+          updatedOrderStatus ??
+          payment.order.status,
+      };
+    });
+  }
 }
