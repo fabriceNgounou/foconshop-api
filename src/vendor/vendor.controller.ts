@@ -80,4 +80,11 @@ export class VendorController {
   ) {
     return this.vendorService.updateStatus(Number(id), dto.status);
   }
+
+  @Get('pending')
+  @Roles(Role.ADMIN)
+  async getPendingVendors() {
+    return this.vendorService.getPendingVendors();
+  }
+  
 }

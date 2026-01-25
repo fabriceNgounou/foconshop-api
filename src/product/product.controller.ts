@@ -1,3 +1,4 @@
+// src/product/product.controller.ts
 import {
   Controller,
   Get,
@@ -8,7 +9,6 @@ import {
   Body,
   Req,
   UseGuards,
-  ForbiddenException,
 } from '@nestjs/common';
 
 import { ProductService } from './product.service';
@@ -16,9 +16,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from 'src/auth/roles.decorator';
-import { Role } from '@prisma/client';
+import { VendorApprovedGuard } from '../vendor/guards/vendor-approved.guard';
 
 @Controller('products')
 export class ProductController {
@@ -33,39 +31,43 @@ export class ProductController {
   }
 
   /* ===========================
-     🔐 VENDOR – CREATE PRODUCT
+     🔓 PUBLIC – PRODUCT DETAIL
      =========================== */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.VENDOR)
+  @Get(':id')
+  async findOnePublic(@Param('id') id: string) {
+    return this.productService.findOnePublic(Number(id));
+  }
+
+  /* ===========================
+     🔐 VENDOR (APPROVED) – CREATE
+     =========================== */
+  @UseGuards(JwtAuthGuard, VendorApprovedGuard)
   @Post()
   async create(
     @Body() dto: CreateProductDto,
     @Req() req: any,
   ) {
-    const user = req.user;
-
-    if (!user.vendorId) {
-      throw new ForbiddenException('Vendor profile not found');
-    }
-
-    return this.productService.create(user.vendorId, dto);
+    return this.productService.create(
+      req.user.vendorId,
+      dto,
+    );
   }
 
   /* ===========================
-     🔐 VENDOR – MY PRODUCTS
+     🔐 VENDOR (APPROVED) – MY PRODUCTS
      =========================== */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.VENDOR)
+  @UseGuards(JwtAuthGuard, VendorApprovedGuard)
   @Get('me')
   async findMyProducts(@Req() req: any) {
-    return this.productService.findMyProducts(req.user.vendorId);
+    return this.productService.findMyProducts(
+      req.user.vendorId,
+    );
   }
 
   /* ===========================
-     🔐 VENDOR – UPDATE PRODUCT
+     🔐 VENDOR (APPROVED) – UPDATE
      =========================== */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.VENDOR)
+  @UseGuards(JwtAuthGuard, VendorApprovedGuard)
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -80,10 +82,9 @@ export class ProductController {
   }
 
   /* ===========================
-     🔐 VENDOR – DELETE PRODUCT
+     🔐 VENDOR (APPROVED) – DELETE
      =========================== */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.VENDOR)
+  @UseGuards(JwtAuthGuard, VendorApprovedGuard)
   @Delete(':id')
   async remove(
     @Param('id') id: string,
@@ -94,12 +95,4 @@ export class ProductController {
       req.user.vendorId,
     );
   }
-
-  // src/product/product.controller.ts
-
-   @Get(':id')
-   async findOnePublic(@Param('id') id: string) {
-     return this.productService.findOnePublic(Number(id));
-   }
-   
 }

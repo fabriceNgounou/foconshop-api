@@ -101,5 +101,24 @@ export class VendorService {
     });
   }
 
+  async getPendingVendors() {
+  return this.prisma.vendorProfile.findMany({
+    where: { status: 'PENDING' },
+    include: {
+      user: {
+        select: {
+          email: true,
+          phone: true,
+        },
+      },
+      kycDocs: true,
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  });
+}
+
+
   
 }
