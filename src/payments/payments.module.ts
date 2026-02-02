@@ -3,8 +3,7 @@ import { Module } from '@nestjs/common';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { LoyaltyService } from 'src/loyalty/loyalty.service';
-
+import { LoyaltyService } from '../loyalty/loyalty.service';
 @Module({
   controllers: [PaymentsController],
   providers: [PaymentsService, PrismaService,LoyaltyService],

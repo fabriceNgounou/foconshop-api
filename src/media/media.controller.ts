@@ -16,11 +16,8 @@ import { extname } from 'path';
 
 import { MediaService } from './media.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/roles.decorator';
 import { Role, MediaType } from '@prisma/client';
-import { VendorApprovedGuard } from 'src/vendor/guards/vendor-approved.guard';
-
+import { VendorApprovedGuard } from '../vendor/guards/vendor-approved.guard';
 @Controller('media')
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}

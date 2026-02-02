@@ -2,7 +2,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateKycDto } from './dto/create-kyc.dto';
-import { UpdateStatusDto } from './dto/update-status.dto';
 import { VendorStatus } from '@prisma/client';
 
 @Injectable()
