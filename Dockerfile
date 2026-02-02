@@ -15,6 +15,9 @@ COPY . .
 # Compilation TypeScript
 RUN npx tsc --project tsconfig.build.json
 
+#chargement postgres
+RUN npx prisma migrate deploy
+
 # Debug : vérifier le contenu de dist/
 RUN echo "=== Contents of dist/ ===" && ls -la dist/
 
