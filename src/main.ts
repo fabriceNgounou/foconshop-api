@@ -3,8 +3,12 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
+  console.log('Starting NestJS application...');
+  console.log('PORT:', process.env.PORT);
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  
   const app = await NestFactory.create(AppModule);
-
+  
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -13,10 +17,7 @@ async function bootstrap() {
     }),
   );
 
-
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
-  
-  // log pour debug
   console.log(`Application is running on: ${await app.getUrl()}`);
 }
 
