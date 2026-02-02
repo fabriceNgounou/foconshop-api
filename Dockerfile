@@ -13,7 +13,7 @@ RUN npx prisma generate
 COPY . .
 
 # Compilation TypeScript
-RUN npx tsc --project tsconfig.json
+RUN npx tsc --project tsconfig.build.json
 
 # Debug : vérifier le contenu de dist/
 RUN echo "=== Contents of dist/ ===" && ls -la dist/
