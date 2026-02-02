@@ -32,4 +32,4 @@ COPY --from=builder /app/package*.json ./
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["sh", "-c", "echo '=== DEBUG ===' && ls -la && echo '=== DIST ===' && ls -la dist/ && echo '=== STARTING ===' && npm run start:prod"]
+CMD ["sh", "-c", "pwd && echo '=== LISTING FILES ===' && ls -la && echo '=== LISTING DIST ===' && ls -la dist/ && echo '=== STARTING APP ===' && node dist/main.js"]
