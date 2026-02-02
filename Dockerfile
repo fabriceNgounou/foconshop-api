@@ -1,32 +1,27 @@
-# =========================
-# Étape 1 : Build
-# =========================
-FROM node:18-alpine AS builder
+# ---- Build stage ----
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Installer les dépendances
+# Dépendances système nécessaires à Prisma
+RUN apt-get update && apt-get install -y openssl ca-certificates
+
 COPY package*.json ./
+COPY prisma ./prisma
+
 RUN npm install
-
-# Copier le reste du projet
-COPY . .
-
-# Générer Prisma
 RUN npx prisma generate
 
-# Build NestJS
+COPY . .
 RUN npm run build
 
-
-# =========================
-# Étape 2 : Production
-# =========================
-FROM node:18-alpine
+# ---- Production stage ----
+FROM node:20-slim
 
 WORKDIR /app
 
-# Copier uniquement ce qui est nécessaire
+RUN apt-get update && apt-get install -y openssl ca-certificates
+
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
@@ -35,5 +30,4 @@ COPY package*.json ./
 ENV NODE_ENV=production
 EXPOSE 3000
 
-# Lancer les migrations puis l'API
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+CMD ["node", "dist/main.js"]
