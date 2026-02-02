@@ -11,18 +11,7 @@ RUN npm ci
 RUN npx prisma generate
 
 COPY . .
-
-# Compilation TypeScript
-RUN npx tsc --project tsconfig.build.json
-
-# FORCEZ LES MIGRATIONS AVEC LOGS
-RUN echo "=== APPLYING DATABASE MIGRATIONS ==="
-RUN npx prisma migrate deploy --schema=./prisma/schema.prisma 2>&1 || echo "Migrations might have already been applied"
-RUN echo "=== CHECKING TABLES ==="
-RUN npx prisma db execute --stdin --schema=./prisma/schema.prisma <<< "SELECT tablename FROM pg_tables WHERE schemaname = 'public';" || echo "Cannot check tables"
-
-# Debug : vérifier le contenu de dist/
-RUN echo "=== Contents of dist/ ===" && ls -la dist/
+RUN npm run build
 
 # ---- Production stage ----
 FROM node:20-alpine
@@ -36,7 +25,7 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package*.json ./
 
 ENV NODE_ENV=production
-
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
+# D'ABORD appliquer les migrations, PUIS démarrer l'application
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
