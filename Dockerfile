@@ -9,7 +9,9 @@ RUN apk add --no-cache openssl ca-certificates
 COPY package*.json ./
 COPY prisma ./prisma
 
-RUN npm ci --only=production
+# INSTALLEZ TOUTES LES DÉPENDANCES (pas seulement production)
+RUN npm ci
+
 RUN npx prisma generate
 
 COPY . .
@@ -30,4 +32,4 @@ COPY --from=builder /app/package*.json ./
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["sh", "-c", "echo 'Checking dist directory...' && ls -la dist/ && echo 'Starting application...' && npm run start:prod"]
+CMD ["sh", "-c", "echo '=== DEBUG ===' && ls -la && echo '=== DIST ===' && ls -la dist/ && echo '=== STARTING ===' && npm run start:prod"]
