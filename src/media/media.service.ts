@@ -5,38 +5,39 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MediaType } from '@prisma/client';
 
 @Injectable()
 export class MediaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async addProductImage(
+  async addProductMedia(
     productId: number,
     vendorId: number,
-    filePath: string,
+    url: string,
+    type: MediaType,
   ) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
 
     if (!product) {
-      throw new NotFoundException('Product not found');
+      throw new NotFoundException('Produit introuvable');
     }
 
     if (product.vendorId !== vendorId) {
-      throw new ForbiddenException('Not your product');
+      throw new ForbiddenException('Accès refusé à ce produit');
     }
 
     return this.prisma.media.create({
       data: {
         productId,
-        url: filePath,
-        type: 'IMAGE',
+        url,
+        type,
       },
     });
   }
 
-  // 🔓 Public – list images of a product
   async findByProduct(productId: number) {
     return this.prisma.media.findMany({
       where: { productId },

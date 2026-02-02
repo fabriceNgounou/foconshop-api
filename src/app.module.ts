@@ -18,6 +18,10 @@ import { ShipmentsModule } from './shipments/shipments.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
 import { ReferralModule } from './referal/referral.module';
 import { CouponsModule } from './coupons/coupons.module';
+import { ReturnsModule } from './returns/returns.module';
+import { DisputeModule } from './disputes/disputes.module';
+import { ResolutionsModule } from './resolutions/resolutions.module';
+import { MetricsModule } from './admin/metrics/metrics.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule,
@@ -34,7 +38,11 @@ import { CouponsModule } from './coupons/coupons.module';
     ShipmentsModule,
     LoyaltyModule,
     ReferralModule,
-    CouponsModule],
+    CouponsModule,
+    ReturnsModule,
+    DisputeModule,
+    ResolutionsModule,
+    MetricsModule],
   controllers: [AppController],
   providers: [AppService,PrismaService],
 })
