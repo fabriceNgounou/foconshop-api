@@ -129,6 +129,19 @@ model User {
   referralsReceived Referral[] @relation("Referee")
 }
 
+model PendingRegistration {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String
+  phone     String?
+  password  String
+  otpCode   String
+  otpExpiry DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([email])
+}
+
 model VendorProfile {
   id         Int           @id @default(autoincrement())
   user       User          @relation(fields: [userId], references: [id])

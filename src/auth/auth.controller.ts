@@ -9,7 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
+import { InitiateRegisterDto } from './dto/initiate-register.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -17,10 +18,28 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Post('register')
-  async register(@Body() dto: RegisterDto) {
-    const result = await this.authService.register(dto);
-    return { message: 'User created', user: result.user };
+  /**
+   * Nouvelle route : Initier l'inscription
+   */
+  @Post('register/initiate')
+  async initiateRegister(@Body() dto: InitiateRegisterDto) {
+    return this.authService.initiateRegister(dto);
+  }
+
+  /**
+   * Nouvelle route : Vérifier l'OTP et créer le compte
+   */
+  @Post('register/verify')
+  async verifyOtpAndRegister(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtpAndRegister(dto);
+  }
+
+  /**
+   * Nouvelle route : Renvoyer l'OTP
+   */
+  @Post('register/resend-otp')
+  async resendOtp(@Body('email') email: string) {
+    return this.authService.resendOtp(email);
   }
 
   @HttpCode(HttpStatus.OK)

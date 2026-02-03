@@ -8,6 +8,7 @@ import { JwtStrategy } from './jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -15,9 +16,10 @@ import { LoyaltyModule } from '../loyalty/loyalty.module';
 
     PassportModule,
     LoyaltyModule,
+    EmailModule,
 
     JwtModule.registerAsync({
-      imports: [ConfigModule],
+      imports: [ConfigModule,],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
