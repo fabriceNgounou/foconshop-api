@@ -1,56 +1,40 @@
-// src/orders/orders.controller.ts
-import {
-  Controller,
-  Get,
-  Patch,
-  Param,
-  ParseIntPipe,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Patch, Param, ParseIntPipe, Req, Post, UseGuards } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreateOrderDto } from './dto/create-order-item-dto';
 
 @Controller('orders')
-@UseGuards(JwtAuthGuard)
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  /**
-   * GET /orders/me
-   */
+  // ===== Routes existantes =====
+  @UseGuards(JwtAuthGuard)
   @Get('me')
   getMyOrders(@Req() req: any) {
     return this.ordersService.findMyOrders(req.user.sub);
   }
 
-  /**
-   * GET /orders/:id
-   */
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
-  getMyOrder(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req: any,
-  ) {
+  getMyOrder(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return this.ordersService.findOneMyOrder(id, req.user.sub);
   }
 
-  /**
-   * PATCH /orders/:id/cancel
-   */
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/cancel')
-  cancel(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req: any,
-  ) {
+  cancel(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return this.ordersService.cancel(id, req.user.sub);
   }
 
-  /**
-   * GET /orders/:id/status
-   */
+  @UseGuards(JwtAuthGuard)
   @Get(':id/status')
   getStatus(@Param('id') id: string, @Req() req: any) {
     return this.ordersService.getOrderStatus(+id, req.user.sub);
+  }
+
+  // ===== Nouvelle route guest =====
+  @Post('guest')
+  createGuestOrder(@Body() dto: CreateOrderDto) {
+    return this.ordersService.createGuestOrder(dto);
   }
 }

@@ -14,6 +14,8 @@ import {
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { Role } from '@prisma/client';
+import { Roles } from '../auth/roles.decorator';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { VendorApprovedGuard } from '../vendor/guards/vendor-approved.guard';
@@ -29,6 +31,10 @@ export class ProductController {
   async findAllPublic() {
     return this.productService.findAllPublic();
   }
+
+  
+
+
 
   /* ===========================
      🔓 PUBLIC – PRODUCT DETAIL
@@ -56,12 +62,10 @@ export class ProductController {
   /* ===========================
      🔐 VENDOR (APPROVED) – MY PRODUCTS
      =========================== */
-  @UseGuards(JwtAuthGuard, VendorApprovedGuard)
-  @Get('me')
+  @Get('my/products')
+  @UseGuards(JwtAuthGuard)
   async findMyProducts(@Req() req: any) {
-    return this.productService.findMyProducts(
-      req.user.vendorId,
-    );
+    return this.productService.findMyProducts(req.user.vendorId);
   }
 
   /* ===========================

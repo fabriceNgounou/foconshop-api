@@ -25,6 +25,83 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentType {
+  FULL
+  DEPOSIT
+}
+
+enum PaymentMethod {
+  ORANGE_MONEY
+  MTN_MOMO
+  COD
+}
+
+enum ShipmentStatus {
+  CREATED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+enum LoyaltyEntryType {
+  EARN
+  SPEND
+}
+
+enum LoyaltySource {
+  ORDER
+  COUPON
+  REFERRAL
+  SIGNUP
+  ADMIN
+}
+
+enum CouponType {
+  FIXED
+  PERCENTAGE
+}
+
+enum InvoiceType {
+  DIGITAL
+  PHYSICAL
+}
+
+enum InvoiceStatus {
+  GENERATED
+  CANCELLED
+}
+
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RESOLVED
+}
+
+enum DisputeStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum ResolutionType {
+  REFUND
+  REPLACEMENT
+  REJECTED
+}
+
+
 model User {
   id        Int            @id @default(autoincrement())
   username  String?        @unique
@@ -33,6 +110,7 @@ model User {
   password  String
   role      Role           @default(CLIENT)
   createdAt DateTime       @default(now())
+
   vendor    VendorProfile?
   otpCodes  OtpCode[]
 
@@ -40,11 +118,12 @@ model User {
   orders    Order[]
   addresses Address[]
 
-  loyaltyWallet LoyaltyWallet?
+  loyaltyWallet  LoyaltyWallet?
   loyaltyEntries LoyaltyEntry[]
   couponUsages   CouponUsage[]
   returnRequests ReturnRequest[]
   disputes       Dispute[]
+  invoices       Invoice[]   @relation("UserInvoices")
 
   referralsSent     Referral[] @relation("Referrer")
   referralsReceived Referral[] @relation("Referee")
@@ -58,7 +137,7 @@ model VendorProfile {
   status     VendorStatus  @default(PENDING)
   kycDocs    KycDocument[]
   createdAt  DateTime      @default(now())
-  products   Product[] // Ajouté: relation avec Product
+  products   Product[]
 }
 
 model OtpCode {
@@ -91,8 +170,11 @@ model Product {
   createdAt   DateTime       @default(now())
 
   variants ProductVariant[]
+  media    Media[]
 
-  media Media[]
+  @@index([vendorId])
+  @@index([categoryId])
+  @@index([createdAt])
 }
 
 model Category {
@@ -116,26 +198,20 @@ model ProductVariant {
 
   CartItem  CartItem[]
   OrderItem OrderItem[]
+
+  @@index([productId])
 }
-
-enum MediaType {
-  IMAGE
-  VIDEO
-}
-
-
 
 model Media {
-  id        Int       @id @default(autoincrement())
-  url       String
-  type      MediaType
+  id   Int       @id @default(autoincrement())
+  url  String
+  type MediaType
 
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId Int
 
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 }
-
 
 model Cart {
   id        Int        @id @default(autoincrement())
@@ -153,7 +229,7 @@ model CartItem {
   productVariant ProductVariant @relation(fields: [variantId], references: [id])
   variantId      Int
   quantity       Int
-  unitPrice      Float // prix figé
+  unitPrice      Float
   createdAt      DateTime       @default(now())
 
   @@unique([cartId, variantId])
@@ -161,31 +237,42 @@ model CartItem {
 
 model Address {
   id          Int      @id @default(autoincrement())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      Int
+  user        User?     @relation(fields: [userId], references: [id])
+  userId      Int?
   fullName    String
   phone       String
   addressLine String
   city        String
   country     String
   createdAt   DateTime @default(now())
-  Order       Order[]
+  orders      Order[]
 }
 
 model Order {
-  id          Int         @id @default(autoincrement())
-  user        User        @relation(fields: [userId], references: [id])
-  userId      Int
-  address     Address     @relation(fields: [addressId], references: [id])
-  addressId   Int
-  status      OrderStatus @default(PENDING)
-  totalAmount Float
-  items       OrderItem[]
+  id             Int             @id @default(autoincrement())
+  user           User?           @relation(fields: [userId], references: [id])
+  userId         Int?
+  
+  guestName      String?
+  guestEmail     String?
+  guestPhone     String?
+
+  address        Address         @relation(fields: [addressId], references: [id])
+  addressId      Int
+  status         OrderStatus     @default(PENDING)
+  totalAmount    Float
+  items          OrderItem[]
   returnRequests ReturnRequest[]
   disputes       Dispute[]
-  createdAt   DateTime    @default(now())
-  payment     Payment?
-  shipment    Shipment?
+  payment        Payment?
+  shipment       Shipment?
+  invoices       Invoice[]
+
+  createdAt      DateTime        @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -196,111 +283,89 @@ model OrderItem {
   variant   ProductVariant @relation(fields: [variantId], references: [id])
   variantId Int
 
-  name      String // snapshot du nom
-  unitPrice Float // snapshot du prix
-  quantity  Int
+  name        String
+  unitPrice   Float
+  quantity    Int
   returnItems ReturnItem[]
-}
 
-enum PaymentStatus {
-  PENDING
-  SUCCESS
-  FAILED
+  @@index([orderId])
+  @@index([variantId])
 }
-
-enum PaymentMethod {
-  ORANGE_MONEY
-  MTN_MOMO
-}
-
-enum PaymentType {
-  FULL
-  DEPOSIT
-}
-
 
 model Payment {
-  id            Int           @id @default(autoincrement())
-  order         Order         @relation(fields: [orderId], references: [id])
-  orderId       Int           @unique
+  id      Int   @id @default(autoincrement())
+  order   Order @relation(fields: [orderId], references: [id])
+  orderId Int   @unique
 
-  method        PaymentMethod
-  type          PaymentType   @default(FULL)
-  amount        Float         // montant payé (100% ou 20%)
-  status        PaymentStatus @default(PENDING)
+  method PaymentMethod
+  type   PaymentType   @default(FULL)
+  amount Float
+  status PaymentStatus @default(PENDING)
 
-  attempts      PaymentAttempt[]
-  createdAt     DateTime      @default(now())
+  attempts  PaymentAttempt[]
+  createdAt DateTime   @default(now())
+
+  @@index([status])
 }
 
-
 model PaymentAttempt {
-  id          Int           @id @default(autoincrement())
-  payment     Payment       @relation(fields: [paymentId], references: [id])
-  paymentId   Int
+  id        Int     @id @default(autoincrement())
+  payment   Payment @relation(fields: [paymentId], references: [id])
+  paymentId Int
 
-  providerRef String?       // ID Orange / MTN
+  providerRef String?
   status      PaymentStatus
   response    Json?
-  createdAt   DateTime      @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model Invoice {
+  id        Int        @id @default(autoincrement())
+  reference String     @unique
+  order     Order      @relation(fields: [orderId], references: [id])
+  orderId   Int
+  user      User?      @relation("UserInvoices", fields: [userId], references: [id])
+  userId    Int?
+
+  total     Float
+  type      InvoiceType
+  status    InvoiceStatus @default(GENERATED)
+
+  createdAt DateTime @default(now())
 }
 
 model TransactionLog {
   id        Int      @id @default(autoincrement())
-  type      String   // INIT, CALLBACK, ERROR
+  type      String
   payload   Json
   createdAt DateTime @default(now())
 }
 
-enum ShipmentStatus {
-  CREATED
-  IN_TRANSIT
-  OUT_FOR_DELIVERY
-  DELIVERED
-}
-
 model Shipment {
-  id        Int            @id @default(autoincrement())
-  order     Order          @relation(fields: [orderId], references: [id])
-  orderId   Int            @unique
-  status    ShipmentStatus @default(CREATED)
+  id        Int             @id @default(autoincrement())
+  order     Order           @relation(fields: [orderId], references: [id])
+  orderId   Int             @unique
+  status    ShipmentStatus  @default(CREATED)
   events    TrackingEvent[]
-  createdAt DateTime       @default(now())
+  createdAt DateTime        @default(now())
+
+  @@index([status])
 }
 
 model TrackingEvent {
-  id          Int      @id @default(autoincrement())
-  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  shipmentId  Int
-  label       String
-  createdAt   DateTime @default(now())
-}
-
-enum LoyaltyEntryType {
-  EARN
-  SPEND
-}
-
-enum LoyaltySource {
-  ORDER
-  COUPON
-  REFERRAL
-  SIGNUP
-  ADMIN
-}
-
-enum CouponType {
-  FIXED
-  PERCENTAGE
+  id         Int      @id @default(autoincrement())
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  shipmentId Int
+  label      String
+  createdAt  DateTime @default(now())
 }
 
 model LoyaltyWallet {
-  id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int      @unique
+  id        Int  @id @default(autoincrement())
+  user      User @relation(fields: [userId], references: [id])
+  userId    Int  @unique
 
-  balance   Int      @default(0)
-
+  balance   Int @default(0)
   entries   LoyaltyEntry[]
 
   createdAt DateTime @default(now())
@@ -308,92 +373,82 @@ model LoyaltyWallet {
 }
 
 model LoyaltyEntry {
-  id        Int              @id @default(autoincrement())
+  id       Int            @id @default(autoincrement())
+  wallet   LoyaltyWallet  @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  walletId Int
 
-  wallet    LoyaltyWallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  walletId  Int
+  user     User           @relation(fields: [userId], references: [id])
+  userId   Int
 
-  user      User             @relation(fields: [userId], references: [id])
-  userId    Int
+  type     LoyaltyEntryType
+  source   LoyaltySource
+  points   Int
+  reference String?
 
-  type      LoyaltyEntryType
-  source    LoyaltySource
-
-  points    Int
-  reference String?          // ex: ORDER_12, COUPON_XYZ
-
-  createdAt DateTime         @default(now())
+  createdAt DateTime @default(now())
 }
 
 model Coupon {
-  id          Int        @id @default(autoincrement())
-  code        String     @unique
+  id   Int    @id @default(autoincrement())
+  code String @unique
 
-  type        CouponType
-  value       Float      // montant ou pourcentage
+  type  CouponType
+  value Float
 
-  maxUses     Int?
-  usedCount   Int        @default(0)
+  maxUses   Int?
+  usedCount Int  @default(0)
 
-  expiresAt   DateTime?
-  isActive    Boolean    @default(true)
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
 
-  usages      CouponUsage[]
-
-  createdAt   DateTime   @default(now())
+  usages CouponUsage[]
+  createdAt DateTime @default(now())
 }
 
 model CouponUsage {
-  id        Int      @id @default(autoincrement())
+  id       Int   @id @default(autoincrement())
+  coupon   Coupon @relation(fields: [couponId], references: [id])
+  couponId Int
 
-  coupon    Coupon   @relation(fields: [couponId], references: [id])
-  couponId  Int
+  user     User   @relation(fields: [userId], references: [id])
+  userId   Int
 
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
-
-  usedAt    DateTime @default(now())
+  usedAt DateTime @default(now())
 
   @@unique([couponId, userId])
 }
 
 model Referral {
-  id          Int      @id @default(autoincrement())
+  id         Int  @id @default(autoincrement())
+  referrer   User @relation("Referrer", fields: [referrerId], references: [id])
+  referrerId Int
 
-  referrer    User     @relation("Referrer", fields: [referrerId], references: [id])
-  referrerId  Int
+  referee    User @relation("Referee", fields: [refereeId], references: [id])
+  refereeId  Int
 
-  referee     User     @relation("Referee", fields: [refereeId], references: [id])
-  refereeId   Int
-
-  rewardGiven Boolean  @default(false)
-
-  createdAt   DateTime @default(now())
+  rewardGiven Boolean @default(false)
+  createdAt  DateTime @default(now())
 
   @@unique([referrerId, refereeId])
 }
 
-enum ReturnStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  RESOLVED
-}
-
 model ReturnRequest {
-  id        Int          @id @default(autoincrement())
-  order     Order        @relation(fields: [orderId], references: [id])
-  orderId   Int
+  id      Int   @id @default(autoincrement())
+  order   Order @relation(fields: [orderId], references: [id])
+  orderId Int
 
-  user      User         @relation(fields: [userId], references: [id])
-  userId    Int
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
 
-  reason    String
-  status    ReturnStatus @default(PENDING)
+  reason String
+  status ReturnStatus @default(PENDING)
+  items  ReturnItem[]
 
-  items     ReturnItem[]
+  createdAt DateTime @default(now())
 
-  createdAt DateTime     @default(now())
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
 }
 
 model ReturnItem {
@@ -401,54 +456,39 @@ model ReturnItem {
   returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id])
   returnRequestId Int
 
-  orderItem       OrderItem     @relation(fields: [orderItemId], references: [id])
-  orderItemId     Int
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+  orderItemId Int
 
-  quantity        Int
-}
-
-enum DisputeStatus {
-  OPEN
-  IN_PROGRESS
-  CLOSED
+  quantity Int
 }
 
 model Dispute {
-  id        Int            @id @default(autoincrement())
-  order     Order          @relation(fields: [orderId], references: [id])
-  orderId   Int
+  id      Int   @id @default(autoincrement())
+  order   Order @relation(fields: [orderId], references: [id])
+  orderId Int
 
-  user      User           @relation(fields: [userId], references: [id])
-  userId    Int
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
 
-  message   String
-  status    DisputeStatus  @default(OPEN)
+  message String
+  status  DisputeStatus @default(OPEN)
 
   resolution Resolution?
+  createdAt DateTime @default(now())
 
-  createdAt DateTime       @default(now())
-}
-
-
-enum ResolutionType {
-  REFUND
-  REPLACEMENT
-  REJECTED
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
 }
 
 model Resolution {
-  id          Int            @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
+  dispute   Dispute @relation(fields: [disputeId], references: [id])
+  disputeId Int     @unique
 
-  dispute     Dispute        @relation(fields: [disputeId], references: [id])
-  disputeId   Int            @unique
+  type      ResolutionType
+  note      String?
+  createdAt DateTime @default(now())
 
-  type        ResolutionType
-  note        String?
-
-  createdAt   DateTime       @default(now())
+  @@index([disputeId])
 }
-
-
-
-
-

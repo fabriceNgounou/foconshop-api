@@ -2,7 +2,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateKycDto } from './dto/create-kyc.dto';
-import { VendorStatus } from '@prisma/client';
+import { VendorStatus, Role } from '@prisma/client';
 
 @Injectable()
 export class VendorService {
@@ -72,31 +72,50 @@ export class VendorService {
   async updateStatus(vendorId: number, status: VendorStatus) {
     const vendor = await this.prisma.vendorProfile.findUnique({
       where: { id: vendorId },
+      include: { user: true },
     });
 
     if (!vendor) {
       throw new NotFoundException('Vendor not found');
     }
 
-    // 🔒 Empêcher une double validation
-    if (vendor.status === 'APPROVED') {
-      throw new BadRequestException(
-        'Vendor is already approved',
-      );
+    if (vendor.status === VendorStatus.APPROVED) {
+      throw new BadRequestException('Vendor already approved');
     }
 
-    let codeUnique = vendor.codeUnique;
-
-    if (status === 'APPROVED' && !codeUnique) {
-      codeUnique = this.generateCodeUnique(vendor.id);
+    if (status !== VendorStatus.APPROVED && status !== VendorStatus.REJECTED) {
+      throw new BadRequestException('Invalid vendor status');
     }
 
-    return this.prisma.vendorProfile.update({
-      where: { id: vendorId },
-      data: {
-        status,
-        codeUnique,
-      },
+    const codeUnique =
+      status === VendorStatus.APPROVED
+        ? this.generateCodeUnique(vendor.id)
+        : null;
+
+    /**
+     * 🔒 Transaction atomique :
+     * - validation vendeur
+     * - changement de rôle utilisateur
+     */
+    return this.prisma.$transaction(async (tx) => {
+      const updatedVendor = await tx.vendorProfile.update({
+        where: { id: vendorId },
+        data: {
+          status,
+          codeUnique,
+        },
+      });
+
+      if (status === VendorStatus.APPROVED) {
+        await tx.user.update({
+          where: { id: vendor.userId },
+          data: {
+            role: Role.VENDOR,
+          },
+        });
+      }
+
+      return updatedVendor;
     });
   }
 
@@ -117,6 +136,30 @@ export class VendorService {
     },
   });
 }
+
+async findOrdersForVendor(userId: number) {
+    const vendor = await this.prisma.vendorProfile.findUnique({
+      where: { userId },
+    });
+    if (!vendor) return [];
+
+    return this.prisma.order.findMany({
+      where: {
+        items: {
+          some: {
+            variant: { product: { vendorId: vendor.id } },
+          },
+        },
+      },
+      include: {
+        items: true,
+        address: true,
+        shipment: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
 
 
   

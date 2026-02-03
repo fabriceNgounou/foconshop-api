@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -28,13 +28,32 @@ export class ProductService {
     });
   }
 
-
   async findMyProducts(vendorProfileId: number) {
-    return this.prisma.product.findMany({
-      where: { vendorId: vendorProfileId },
-      orderBy: { createdAt: 'desc' },
-    });
+  if (!vendorProfileId) throw new BadRequestException('Vendor ID is required');
+  
+  return this.prisma.product.findMany({
+    where: { vendorId: vendorProfileId },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+
+
+async findMyProductsByUser(userId: number) {
+  const vendor = await this.prisma.vendorProfile.findUnique({
+    where: { userId },
+  });
+
+  if (!vendor) {
+    throw new ForbiddenException('User is not a vendor');
   }
+
+  return this.prisma.product.findMany({
+    where: { vendorId: vendor.id },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
 
   async update(productId: number, vendorProfileId: number, dto: UpdateProductDto) {
     const product = await this.prisma.product.findUnique({

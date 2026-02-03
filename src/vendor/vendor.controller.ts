@@ -3,16 +3,15 @@ import {
   Controller,
   Post,
   Get,
-  Param,
   Body,
   Req,
   UseGuards,
-  ForbiddenException,
   Patch,
+  Param,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/roles.decorator';  
+import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { VendorService } from './vendor.service';
 import { CreateKycDto } from './dto/create-kyc.dto';
@@ -24,67 +23,55 @@ export class VendorController {
   constructor(private readonly vendorService: VendorService) {}
 
   /**
-   * 1️⃣ Devenir vendeur
-   * POST /vendors
-   * Rôle : CLIENT
+   * CLIENT → demander à devenir vendeur
    */
   @Post()
   @Roles(Role.CLIENT)
-  async becomeVendor(@Req() req: any) {
-    const userId = req.user.sub;
-    return this.vendorService.createVendorProfile(userId);
+  becomeVendor(@Req() req: any) {
+    return this.vendorService.createVendorProfile(req.user.sub);
   }
 
   /**
-   * 2️⃣ Consulter son profil vendeur
-   * GET /vendors/me
-   * Rôle : VENDOR
+   * VENDOR → voir son profil
    */
   @Get('me')
   @Roles(Role.VENDOR)
-  async getMyVendorProfile(@Req() req: any) {
+  getMyProfile(@Req() req: any) {
     return this.vendorService.getByUserId(req.user.sub);
   }
 
   /**
-   * 3️⃣ Ajouter un KYC
-   * POST /vendors/:id/kyc
-   * Rôle : VENDOR
+   * VENDOR → ajouter KYC (route sécurisée)
    */
-  @Post(':id/kyc')
+  @Post('me/kyc')
   @Roles(Role.VENDOR)
-  async uploadKyc(
-    @Param('id') id: string,
-    @Body() dto: CreateKycDto,
-    @Req() req: any,
-  ) {
-    if (Number(req.user.vendorId) !== Number(id)) {
-      throw new ForbiddenException(
-        'You can only upload your own KYC documents',
-      );
-    }
-
-    return this.vendorService.addKycDocument(Number(id), dto);
+  uploadMyKyc(@Req() req: any, @Body() dto: CreateKycDto) {
+    return this.vendorService.addKycDocument(req.user.vendorId, dto);
   }
 
   /**
-   * 4️⃣ Validation / rejet vendeur
-   * PATCH /vendors/:id/status
-   * Rôle : ADMIN
+   * ADMIN → valider / rejeter vendeur
    */
   @Patch(':id/status')
   @Roles(Role.ADMIN)
-  async updateVendorStatus(
+  updateVendorStatus(
     @Param('id') id: string,
     @Body() dto: UpdateVendorStatusDto,
   ) {
     return this.vendorService.updateStatus(Number(id), dto.status);
   }
 
+  /**
+   * ADMIN → vendeurs en attente
+   */
   @Get('pending')
   @Roles(Role.ADMIN)
-  async getPendingVendors() {
+  getPendingVendors() {
     return this.vendorService.getPendingVendors();
   }
-  
+  //Recuperer les commandes d'un vendeur
+  @Get('orders')
+  getMyOrders(@Req() req: any) {
+    return this.vendorService.findOrdersForVendor(req.user.sub);
+  }
 }
