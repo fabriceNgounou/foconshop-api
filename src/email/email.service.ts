@@ -20,4 +20,68 @@ export class EmailService {
       `,
     });
   }
+
+  async sendPasswordResetOtp(email: string, otpCode: string) {
+    await this.mailerService.sendMail({
+      to: email,
+      subject: 'Réinitialisation de mot de passe',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px;">
+            <h2 style="color: #333; margin-top: 0;">Réinitialisation de mot de passe</h2>
+            <p style="color: #666; font-size: 16px;">
+              Vous avez demandé la réinitialisation de votre mot de passe.
+            </p>
+            <p style="color: #666; font-size: 16px;">
+              Votre code de vérification est :
+            </p>
+            <div style="background-color: white; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+              <h1 style="color: #FF5722; font-size: 36px; letter-spacing: 8px; margin: 0;">${otpCode}</h1>
+            </div>
+            <p style="color: #666; font-size: 14px;">
+              ⏱️ Ce code expire dans <strong>10 minutes</strong>.
+            </p>
+            <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-top: 20px; border-radius: 4px;">
+              <p style="color: #856404; margin: 0; font-size: 14px;">
+                ⚠️ <strong>Attention :</strong> Si vous n'avez pas demandé cette réinitialisation, 
+                ignorez cet email et votre mot de passe restera inchangé.
+              </p>
+            </div>
+          </div>
+          <p style="color: #999; font-size: 12px; text-align: center; margin-top: 20px;">
+            Cet email a été envoyé automatiquement, merci de ne pas y répondre.
+          </p>
+        </div>
+      `,
+    });
+  }
+
+  async sendPasswordResetConfirmation(email: string) {
+    await this.mailerService.sendMail({
+      to: email,
+      subject: 'Mot de passe modifié avec succès',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px;">
+            <h2 style="color: #333; margin-top: 0;">✅ Mot de passe modifié</h2>
+            <p style="color: #666; font-size: 16px;">
+              Votre mot de passe a été modifié avec succès.
+            </p>
+            <p style="color: #666; font-size: 16px;">
+              Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.
+            </p>
+            <div style="background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin-top: 20px; border-radius: 4px;">
+              <p style="color: #155724; margin: 0; font-size: 14px;">
+                🔒 <strong>Sécurité :</strong> Si vous n'êtes pas à l'origine de ce changement, 
+                contactez immédiatement notre support.
+              </p>
+            </div>
+          </div>
+          <p style="color: #999; font-size: 12px; text-align: center; margin-top: 20px;">
+            Cet email a été envoyé automatiquement, merci de ne pas y répondre.
+          </p>
+        </div>
+      `,
+    });
+  }
 }

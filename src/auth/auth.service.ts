@@ -12,6 +12,9 @@ import { LoginDto } from './dto/login.dto';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { LoyaltySource } from '@prisma/client';
 import { EmailService } from '../email/email.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
 
 @Injectable()
 export class AuthService {
@@ -224,6 +227,214 @@ export class AuthService {
         role: user.role,
         vendorId,
       },
+    };
+  }
+
+  /**
+   * ÉTAPE 1 : Demander la réinitialisation du mot de passe
+   */
+  async forgotPassword(dto: ForgotPasswordDto) {
+    // Vérifier si l'utilisateur existe
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (!user) {
+      // Pour des raisons de sécurité, on ne révèle pas si l'email existe ou non
+      return {
+        message: 'If this email exists, a reset code has been sent',
+      };
+    }
+
+    // Générer l'OTP
+    const otpCode = this.generateOtp();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Invalider tous les codes précédents non utilisés pour cet email
+    await this.prisma.passwordReset.updateMany({
+      where: {
+        email: dto.email,
+        isUsed: false,
+      },
+      data: {
+        isUsed: true,
+      },
+    });
+
+    // Créer une nouvelle demande de réinitialisation
+    await this.prisma.passwordReset.create({
+      data: {
+        email: dto.email,
+        otpCode,
+        otpExpiry,
+      },
+    });
+
+    // Envoyer l'OTP par email
+    await this.emailService.sendPasswordResetOtp(dto.email, otpCode);
+
+    return {
+      message: 'If this email exists, a reset code has been sent',
+      email: dto.email,
+    };
+  }
+
+  /**
+   * ÉTAPE 2 : Vérifier l'OTP de réinitialisation (optionnel)
+   * Cette méthode permet de vérifier le code avant de soumettre le nouveau mot de passe
+   */
+  async verifyResetOtp(dto: VerifyResetOtpDto) {
+    const resetRequest = await this.prisma.passwordReset.findFirst({
+      where: {
+        email: dto.email,
+        otpCode: dto.otpCode,
+        isUsed: false,
+      },
+    });
+
+    if (!resetRequest) {
+      throw new BadRequestException('Invalid or expired reset code');
+    }
+
+    // Vérifier si le code a expiré
+    if (new Date() > resetRequest.otpExpiry) {
+      await this.prisma.passwordReset.update({
+        where: { id: resetRequest.id },
+        data: { isUsed: true },
+      });
+      throw new BadRequestException('Reset code has expired');
+    }
+
+    return {
+      message: 'OTP verified successfully',
+      valid: true,
+    };
+  }
+
+  /**
+   * ÉTAPE 3 : Réinitialiser le mot de passe
+   */
+  async resetPassword(dto: ResetPasswordDto) {
+    // Vérifier si l'utilisateur existe
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid request');
+    }
+
+    // Vérifier le code OTP
+    const resetRequest = await this.prisma.passwordReset.findFirst({
+      where: {
+        email: dto.email,
+        otpCode: dto.otpCode,
+        isUsed: false,
+      },
+    });
+
+    if (!resetRequest) {
+      throw new BadRequestException('Invalid or expired reset code');
+    }
+
+    // Vérifier si le code a expiré
+    if (new Date() > resetRequest.otpExpiry) {
+      await this.prisma.passwordReset.update({
+        where: { id: resetRequest.id },
+        data: { isUsed: true },
+      });
+      throw new BadRequestException('Reset code has expired');
+    }
+
+    // Hasher le nouveau mot de passe
+    const hashedPassword = await this.hashPassword(dto.newPassword);
+
+    // Mettre à jour le mot de passe
+    await this.prisma.user.update({
+      where: { email: dto.email },
+      data: { password: hashedPassword },
+    });
+
+    // Marquer le code comme utilisé
+    await this.prisma.passwordReset.update({
+      where: { id: resetRequest.id },
+      data: { isUsed: true },
+    });
+
+    // Envoyer un email de confirmation
+    await this.emailService.sendPasswordResetConfirmation(dto.email);
+
+    return {
+      message: 'Password reset successfully',
+    };
+  }
+
+  /**
+   * Renvoyer l'OTP de réinitialisation
+   */
+  async resendResetOtp(email: string) {
+    // Vérifier si l'utilisateur existe
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Pour des raisons de sécurité, on ne révèle pas si l'email existe ou non
+      return {
+        message: 'If this email exists, a new code has been sent',
+      };
+    }
+
+    // Vérifier s'il y a une demande en cours
+    const existingRequest = await this.prisma.passwordReset.findFirst({
+      where: {
+        email,
+        isUsed: false,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Limiter le renvoi (par exemple, pas plus d'un renvoi toutes les 2 minutes)
+    if (existingRequest) {
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+      if (existingRequest.createdAt > twoMinutesAgo) {
+        throw new BadRequestException(
+          'Please wait before requesting a new code',
+        );
+      }
+    }
+
+    // Invalider tous les codes précédents
+    await this.prisma.passwordReset.updateMany({
+      where: {
+        email,
+        isUsed: false,
+      },
+      data: {
+        isUsed: true,
+      },
+    });
+
+    // Générer un nouveau code
+    const otpCode = this.generateOtp();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Créer une nouvelle demande
+    await this.prisma.passwordReset.create({
+      data: {
+        email,
+        otpCode,
+        otpExpiry,
+      },
+    });
+
+    // Renvoyer l'email
+    await this.emailService.sendPasswordResetOtp(email, otpCode);
+
+    return {
+      message: 'If this email exists, a new code has been sent',
     };
   }
 }
