@@ -24,6 +24,7 @@ import { ResolutionsModule } from './resolutions/resolutions.module';
 import { MetricsModule } from './admin/metrics/metrics.module';
 import { AdminVendorModule } from './admin/admin-vendor/admin-vendor.module';
 import { AdminOrderModule } from './admin/admin-order/admin-order.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule,
@@ -46,7 +47,8 @@ import { AdminOrderModule } from './admin/admin-order/admin-order.module';
     ResolutionsModule,
     MetricsModule,
     AdminVendorModule,
-    AdminOrderModule,],
+    AdminOrderModule,
+    AdminModule,],
   controllers: [AppController],
   providers: [AppService,PrismaService],
 })
