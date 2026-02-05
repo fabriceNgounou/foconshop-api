@@ -50,14 +50,6 @@ export class AuthService {
       throw new BadRequestException('Email already in use');
     }
 
-    // Vérifier si le username existe déjà
-    const existingUsername = await this.prisma.user.findUnique({
-      where: { username: dto.username },
-    });
-    if (existingUsername) {
-      throw new BadRequestException('Username already in use');
-    }
-
     // Générer l'OTP
     const otpCode = this.generateOtp();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
