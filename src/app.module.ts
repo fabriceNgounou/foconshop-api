@@ -1,10 +1,55 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ConfigModule } from '@nestjs/config';
+import { AuthModule } from './auth/auth.module';
+import { VendorModule } from './vendor/vendor.module';
+import { PrismaService } from './prisma/prisma.service';
+import { ProductModule } from './product/product.module';
+import { CategoryModule } from './category/category.module';
+import { ProductVariantModule } from './product-variant/product-variant.module';
+import { MediaModule } from './media/media.module';
+import { CartModule } from './cart/cart.module';
+import { CheckoutModule } from './checkout/checkout.module';
+import { AddressModule } from './address/address.module';
+import { OrdersModule } from './orders/orders.module';
+import { PaymentsModule } from './payments/payments.module';
+import { ShipmentsModule } from './shipments/shipments.module';
+import { LoyaltyModule } from './loyalty/loyalty.module';
+import { ReferralModule } from './referal/referral.module';
+import { CouponsModule } from './coupons/coupons.module';
+import { ReturnsModule } from './returns/returns.module';
+import { DisputeModule } from './disputes/disputes.module';
+import { ResolutionsModule } from './resolutions/resolutions.module';
+import { MetricsModule } from './admin/metrics/metrics.module';
+import { AdminVendorModule } from './admin/admin-vendor/admin-vendor.module';
+import { AdminOrderModule } from './admin/admin-order/admin-order.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
-  imports: [],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule,
+     ProductModule,
+     VendorModule,
+    CategoryModule,
+     ProductVariantModule,
+    MediaModule,
+    CartModule,
+    CheckoutModule,
+    AddressModule,
+    OrdersModule,
+    PaymentsModule,
+    ShipmentsModule,
+    LoyaltyModule,
+    ReferralModule,
+    CouponsModule,
+    ReturnsModule,
+    DisputeModule,
+    ResolutionsModule,
+    MetricsModule,
+    AdminVendorModule,
+    AdminOrderModule,
+    AdminModule,],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService,PrismaService],
 })
 export class AppModule {}
