@@ -5,6 +5,18 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // ✅ AJOUTE ÇA (CORS)
+  app.enableCors({
+    origin: [
+      'https://foconshop-web.vercel.app',
+      'https://foconshop.com',
+      'https://www.foconshop.com',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true, // laisse true si tu utilises cookies/sessions
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
