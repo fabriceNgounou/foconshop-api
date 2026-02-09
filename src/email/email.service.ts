@@ -14,7 +14,7 @@ export class EmailService {
   async sendOtpEmail(email: string, otpCode: string) {
     try {
       await this.resend.emails.send({
-        from: 'Acme <onboarding@resend.dev>', // Vous pouvez utiliser votre domaine
+        from: 'Acme <onboarding@resend.dev>', // ✅ Bon
         to: email,
         subject: 'Code de vérification - Inscription',
         html: `
@@ -36,7 +36,7 @@ export class EmailService {
   async sendPasswordResetOtp(email: string, otpCode: string) {
     try {
       await this.resend.emails.send({
-        from: 'FoconShop <noreply@foconshop.com>',
+        from: 'Acme <onboarding@resend.dev>', // ← Changez ici aussi
         to: email,
         subject: 'Réinitialisation de mot de passe',
         html: `
@@ -74,7 +74,7 @@ export class EmailService {
   async sendPasswordResetConfirmation(email: string) {
     try {
       await this.resend.emails.send({
-        from: 'FoconShop <noreply@foconshop.com>',
+        from: 'Acme <onboarding@resend.dev>',
         to: email,
         subject: 'Mot de passe modifié avec succès',
         html: `
