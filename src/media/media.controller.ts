@@ -12,12 +12,14 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
+import * as fs from 'fs';
 
 import { MediaService } from './media.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Role, MediaType } from '@prisma/client';
 import { VendorApprovedGuard } from '../vendor/guards/vendor-approved.guard';
+
 @Controller('media')
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
@@ -27,28 +29,38 @@ export class MediaController {
   @Post('products/:productId')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (_, file, cb) => {
-          const uniqueName =
-            Date.now() + '-' + Math.round(Math.random() * 1e9) + extname(file.originalname);
-          cb(null, uniqueName);
-        },
-      }),
-      limits: {
-        fileSize: 50 * 1024 * 1024, // 50 MB
-      },
-      fileFilter: (_, file, cb) => {
-        if (
-          file.mimetype.startsWith('image/') ||
-          file.mimetype.startsWith('video/')
-        ) {
-          cb(null, true);
-        } else {
-          cb(new BadRequestException('Type de fichier non supporté'), false);
-        }
-      },
-    }),
+  storage: diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir =
+        process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      cb(null, uploadDir);
+    },
+    filename: (_, file, cb) => {
+      const uniqueName =
+        Date.now() +
+        '-' +
+        Math.round(Math.random() * 1e9) +
+        extname(file.originalname);
+
+      cb(null, uniqueName);
+    },
+  }),
+  limits: {
+    fileSize: 50 * 1024 * 1024,
+  },
+  fileFilter: (_, file, cb) => {
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new BadRequestException('Type de fichier non supporté'), false);
+    }
+  },
+}),
   )
   async uploadProductMedia(
     @Param('productId') productId: string,
