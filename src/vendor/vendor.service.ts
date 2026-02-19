@@ -3,27 +3,36 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateKycDto } from './dto/create-kyc.dto';
 import { VendorStatus, Role } from '@prisma/client';
+import { CreateVendorDto } from './dto/create-vendor.dto';
 
 @Injectable()
 export class VendorService {
   constructor(private prisma: PrismaService) {}
 
-  async createVendorProfile(userId: number, data?: { storeName?: string }) {
-    // Vérifier si existe déjà
-    const existing = await this.prisma.vendorProfile.findUnique({ where: { userId } });
-    if (existing) return existing;
+  async createVendorProfile(userId: number, dto: CreateVendorDto) {
+  const existing = await this.prisma.vendorProfile.findUnique({
+    where: { userId },
+  });
 
-    const vendor = await this.prisma.vendorProfile.create({
-      data: {
-        userId,
-        codeUnique: null,
-        status: 'PENDING',
-        createdAt: new Date(),
-        // products empty by default
-      },
-    });
-    return vendor;
+  if (existing) {
+    throw new BadRequestException('Vendor profile already exists');
   }
+
+  return this.prisma.vendorProfile.create({
+    data: {
+      userId,
+      businessName: dto.businessName,
+      description: dto.description,
+      categoryId: dto.categoryId,
+      phone: dto.phone,
+      address: dto.address,
+      city: dto.city,
+      region: dto.region,
+      status: VendorStatus.PENDING,
+    },
+  });
+}
+
 
   async getByUserId(userId: number) {
     return this.prisma.vendorProfile.findUnique({
@@ -160,7 +169,20 @@ async findOrdersForVendor(userId: number) {
     });
   }
 
+  async getMyVendorProfile(userId: number) {
+  const vendor = await this.prisma.vendorProfile.findUnique({
+    where: { userId },
+    include: {
+      kycDocs: true,
+      products: true,
+    },
+  });
 
+  if (!vendor) {
+    throw new NotFoundException('Vendor profile not found');
+  }
 
+  return vendor;
+}
   
 }

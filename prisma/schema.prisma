@@ -155,15 +155,30 @@ model PasswordReset {
 }
 
 model VendorProfile {
-  id         Int           @id @default(autoincrement())
-  user       User          @relation(fields: [userId], references: [id])
-  userId     Int           @unique
-  codeUnique String?       @unique
-  status     VendorStatus  @default(PENDING)
-  kycDocs    KycDocument[]
-  createdAt  DateTime      @default(now())
-  products   Product[]
+  id           Int           @id @default(autoincrement())
+  user         User          @relation(fields: [userId], references: [id])
+  userId       Int           @unique
+
+  businessName String
+  description  String?
+  category     Category?     @relation(fields: [categoryId], references: [id])
+  categoryId   Int?
+
+  phone        String
+  address      String
+  city         String
+  region       String
+
+  codeUnique   String?       @unique
+  status       VendorStatus  @default(PENDING)
+
+  kycDocs      KycDocument[]
+  products     Product[]
+  createdAt    DateTime      @default(now())
+
+  @@index([categoryId])
 }
+
 
 model OtpCode {
   id        Int      @id @default(autoincrement())
@@ -203,12 +218,16 @@ model Product {
 }
 
 model Category {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
-  slug      String    @unique
+  id        Int             @id @default(autoincrement())
+  name      String          @unique
+  slug      String          @unique
+
   products  Product[]
-  createdAt DateTime  @default(now())
+  vendors   VendorProfile[] 
+
+  createdAt DateTime        @default(now())
 }
+
 
 model ProductVariant {
   id        Int     @id @default(autoincrement())

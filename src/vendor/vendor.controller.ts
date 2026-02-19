@@ -16,6 +16,7 @@ import { Role } from '@prisma/client';
 import { VendorService } from './vendor.service';
 import { CreateKycDto } from './dto/create-kyc.dto';
 import { UpdateVendorStatusDto } from './dto/update-vendor-status.dto';
+import { CreateVendorDto } from './dto/create-vendor.dto';
 
 @Controller('vendors')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,18 +28,18 @@ export class VendorController {
    */
   @Post()
   @Roles(Role.CLIENT)
-  becomeVendor(@Req() req: any) {
-    return this.vendorService.createVendorProfile(req.user.sub);
+  becomeVendor(@Req() req: any, @Body() dto: CreateVendorDto,) {
+    return this.vendorService.createVendorProfile(req.user.sub, dto);
   }
 
   /**
    * VENDOR → voir son profil
    */
-  @Get('me')
-  @Roles(Role.VENDOR)
-  getMyProfile(@Req() req: any) {
-    return this.vendorService.getByUserId(req.user.sub);
-  }
+  // @Get('me')
+  // @Roles(Role.VENDOR)
+  // getMyProfile(@Req() req: any) {
+  //   return this.vendorService.getByUserId(req.user.sub);
+  // }
 
   /**
    * VENDOR → ajouter KYC (route sécurisée)
@@ -74,4 +75,16 @@ export class VendorController {
   getMyOrders(@Req() req: any) {
     return this.vendorService.findOrdersForVendor(req.user.sub);
   }
+
+  /**
+   * VENDOR → voir son profil
+   */
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  getMyVendorProfile(@Req() req: any) {
+    return this.vendorService.getMyVendorProfile(req.user.sub);
+  }
+
+
 }
