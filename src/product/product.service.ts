@@ -75,22 +75,41 @@ async findMyProductsByUser(userId: number) {
   }
 
   async remove(productId: number, vendorProfileId: number) {
-    const product = await this.prisma.product.findUnique({
-      where: { id: productId },
-    });
+  const product = await this.prisma.product.findUnique({
+    where: { id: productId },
+    include: {
+      variants: {
+        include: {
+          OrderItem: true,
+        },
+      },
+    },
+  });
 
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
-
-    if (product.vendorId !== vendorProfileId) {
-      throw new ForbiddenException('You cannot delete this product');
-    }
-
-    return this.prisma.product.delete({
-      where: { id: productId },
-    });
+  if (!product) {
+    throw new NotFoundException('Product not found');
   }
+
+  if (product.vendorId !== vendorProfileId) {
+    throw new ForbiddenException('You cannot delete this product');
+  }
+
+  // 🔒 RÈGLE MÉTIER CLÉ
+  const hasOrders = product.variants.some(
+    variant => variant.OrderItem.length > 0,
+  );
+
+  if (hasOrders) {
+    throw new BadRequestException(
+      'Impossible de supprimer un produit déjà commandé',
+    );
+  }
+
+  // ✅ OK → jamais commandé
+  return this.prisma.product.delete({
+    where: { id: productId },
+  });
+}
 
   /* 🔓 PUBLIC – LIST PRODUCTS */
   async findAllPublic() {
