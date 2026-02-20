@@ -4,7 +4,7 @@ import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { VendorModule } from './vendor/vendor.module';
-import { PrismaService } from './prisma/prisma.service';
+import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './product/product.module';
 import { CategoryModule } from './category/category.module';
 import { ProductVariantModule } from './product-variant/product-variant.module';
@@ -27,7 +27,9 @@ import { AdminOrderModule } from './admin/admin-order/admin-order.module';
 import { AdminModule } from './admin/admin.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule,
+  imports: [ConfigModule.forRoot({ isGlobal: true }),
+     PrismaModule,
+     AuthModule,
      ProductModule,
      VendorModule,
     CategoryModule,
@@ -50,6 +52,6 @@ import { AdminModule } from './admin/admin.module';
     AdminOrderModule,
     AdminModule,],
   controllers: [AppController],
-  providers: [AppService,PrismaService],
+  providers: [AppService,],
 })
 export class AppModule {}
