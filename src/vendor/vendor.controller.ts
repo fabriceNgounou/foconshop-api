@@ -89,13 +89,4 @@ export class VendorController {
     return this.vendorService.getMyVendorProfile(req.user.sub);
   }
 
-  /**
-   * 🔓 PUBLIC – Récupérer un vendeur par ID
-   * GET /vendors/:id
-   * Doit être placé après toutes les routes spécifiques (pending, orders, me)
-   */
-  @Get(':id')
-  getVendorById(@Param('id') id: string) {
-    return this.vendorService.getVendorById(Number(id));
-  }
 }
