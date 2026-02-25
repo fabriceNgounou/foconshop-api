@@ -170,32 +170,17 @@ async findOrdersForVendor(userId: number) {
   }
 
   async getMyVendorProfile(userId: number) {
-  const vendor = await this.prisma.vendorProfile.findUnique({
-    where: { userId },
-    include: {
-      kycDocs: true,
-      products: true,
-    },
-  });
+    const vendor = await this.prisma.vendorProfile.findUnique({
+      where: { userId },
+      include: {
+        kycDocs: true,
+        products: true,
+      },
+    });
 
-  if (!vendor) {
-    throw new NotFoundException('Vendor profile not found');
-  }
-
-  return vendor;
-}
-
-async getVendorProfile(userId: number) {
-  const vendor = await this.prisma.vendorProfile.findUnique({
-    where: { userId },
-    include: {
-      products: true,
-    },
-  });
-
-  if (!vendor) {
-    throw new NotFoundException('Vendor profile not found');
-  }
+    if (!vendor) {
+      throw new NotFoundException('Vendor profile not found');
+    }
 
   return vendor;
 }
