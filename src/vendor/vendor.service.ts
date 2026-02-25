@@ -170,19 +170,62 @@ async findOrdersForVendor(userId: number) {
   }
 
   async getMyVendorProfile(userId: number) {
-  const vendor = await this.prisma.vendorProfile.findUnique({
-    where: { userId },
-    include: {
-      kycDocs: true,
-      products: true,
-    },
-  });
+    const vendor = await this.prisma.vendorProfile.findUnique({
+      where: { userId },
+      include: {
+        kycDocs: true,
+        products: true,
+      },
+    });
 
-  if (!vendor) {
-    throw new NotFoundException('Vendor profile not found');
+    if (!vendor) {
+      throw new NotFoundException('Vendor profile not found');
+    }
+
+    return vendor;
   }
 
-  return vendor;
-}
-  
+  /**
+   * 🔓 PUBLIC – Récupérer un vendeur par ID
+   * Retourne les informations publiques d'un vendeur
+   */
+  async getVendorById(vendorId: number) {
+    const vendor = await this.prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            phone: true,
+            createdAt: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+        // products: {
+        //   select: {
+        //     id: true,
+        //     title: true,
+        //     description: true,
+        //     createdAt: true,
+        //   },
+        //   orderBy: { createdAt: 'desc' },
+        //   take: 10, // Limiter à 10 produits récents
+        },
+      },
+    });
+
+    if (!vendor) {
+      throw new NotFoundException('Vendor not found');
+    }
+
+    return vendor;
+  }
 }

@@ -21,7 +21,7 @@ import { CreateVendorDto } from './dto/create-vendor.dto';
 @Controller('vendors')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class VendorController {
-  constructor(private readonly vendorService: VendorService) {}
+  constructor(private readonly vendorService: VendorService) { }
 
   /**
    * CLIENT → demander à devenir vendeur
@@ -70,7 +70,10 @@ export class VendorController {
   getPendingVendors() {
     return this.vendorService.getPendingVendors();
   }
-  //Recuperer les commandes d'un vendeur
+
+  /**
+   * VENDOR → Récupérer les commandes d'un vendeur
+   */
   @Get('orders')
   getMyOrders(@Req() req: any) {
     return this.vendorService.findOrdersForVendor(req.user.sub);
@@ -86,5 +89,13 @@ export class VendorController {
     return this.vendorService.getMyVendorProfile(req.user.sub);
   }
 
-
+  /**
+   * 🔓 PUBLIC – Récupérer un vendeur par ID
+   * GET /vendors/:id
+   * Doit être placé après toutes les routes spécifiques (pending, orders, me)
+   */
+  @Get(':id')
+  getVendorById(@Param('id') id: string) {
+    return this.vendorService.getVendorById(Number(id));
+  }
 }
