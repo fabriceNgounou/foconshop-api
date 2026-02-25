@@ -127,13 +127,12 @@ async findMyProductsByUser(userId: number) {
           select: {
             id: true,
             status: true,
+            businessName: true
           },
         },
       },
     });
   }
-
-// src/product/product.service.ts
 
 async findOnePublic(productId: number) {
   const product = await this.prisma.product.findUnique({
@@ -144,6 +143,7 @@ async findOnePublic(productId: number) {
           id: true,
           status: true,
           codeUnique: true,
+          businessName: true,
         },
       },
     },
