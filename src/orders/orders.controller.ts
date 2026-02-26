@@ -59,4 +59,15 @@ export class OrdersController {
   createGuestOrder(@Body() dto: CreateOrderDto) {
     return this.ordersService.createGuestOrder(dto);
   }
+
+  
+    @UseGuards(JwtAuthGuard)
+    @Post('authenticated')
+    async createAuthenticatedOrder(
+      @Req() req: any,
+      @Body() dto: CreateOrderDto,
+    ) {
+      const userId = req.user.sub;
+      return this.ordersService.createAuthenticatedUserOrder(userId, dto);
+    }
 }
