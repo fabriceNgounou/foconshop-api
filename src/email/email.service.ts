@@ -102,4 +102,27 @@ export class EmailService {
       throw error;
     }
   }
+
+  async sendInvoiceEmail(
+  email: string,
+  invoiceRef: string,
+  pdfBuffer: Buffer
+) {
+  await this.resend.emails.send({
+    from: 'FoconShop <billing@foconshop.com>',
+    to: email,
+    subject: `Votre facture ${invoiceRef}`,
+    html: `
+      <p>Bonjour,</p>
+      <p>Veuillez trouver en pièce jointe votre facture.</p>
+      <p>Merci pour votre commande chez <strong>Foconshop</strong>.</p>
+    `,
+    attachments: [
+      {
+        filename: `${invoiceRef}.pdf`,
+        content: pdfBuffer,
+      },
+    ],
+  });
+}
 }
