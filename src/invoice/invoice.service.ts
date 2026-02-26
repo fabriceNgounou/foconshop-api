@@ -25,8 +25,7 @@ export class InvoiceService {
         doc.fontSize(28)
           .fillColor('#f59e0b')
           .text('FACTURE', 50, 50);
-        const logoBase64 = `data:image/jpeg;base64,${FOCONSHOP_LOGO_BASE64}`;
-        doc.image(logoBase64, 50, 45, { width: 100 });
+          doc.image(Buffer.from(FOCONSHOP_LOGO_BASE64, 'base64'), 50, 45, { width: 100 });
 
         doc.fontSize(10)
           .fillColor('#333333')
