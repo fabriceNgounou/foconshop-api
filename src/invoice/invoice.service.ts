@@ -1,6 +1,6 @@
 import { FOCONSHOP_LOGO_BASE64 } from './logo.base64';
 import { Injectable } from '@nestjs/common';
-import PDFDocument from 'pdfkit';
+const PDFDocument = require('pdfkit');
 
 @Injectable()
 export class InvoiceService {
