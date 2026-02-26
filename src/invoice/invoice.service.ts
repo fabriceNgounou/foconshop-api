@@ -4,6 +4,11 @@ const PDFDocument = require('pdfkit');
 
 @Injectable()
 export class InvoiceService {
+  // ✅ Fonction helper pour formater les montants
+  private formatAmount(amount: number): string {
+    return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
   async generateInvoicePdf(data: any): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
@@ -25,7 +30,6 @@ export class InvoiceService {
         doc.on('error', reject);
 
         // ========== EN-TÊTE ==========
-        // Logo à gauche
         try {
           const logoBuffer = Buffer.from(FOCONSHOP_LOGO_BASE64, 'base64');
           doc.image(logoBuffer, 40, 40, { width: 120 });
@@ -33,19 +37,17 @@ export class InvoiceService {
           console.warn('⚠️ Impossible de charger le logo');
         }
 
-        // "Invoice" en orange à droite
         doc.fontSize(32)
           .fillColor('#FF8C00')
           .font('Helvetica-Bold')
           .text('Invoice', 400, 50, { align: 'right' });
 
-        // Numéro de facture
         doc.fontSize(11)
           .fillColor('#666666')
           .font('Helvetica')
           .text(`#${data.invoiceRef}`, 400, 90, { align: 'right' });
 
-        // ========== INFORMATIONS FOCONSHOP (à droite) ==========
+        // ========== INFORMATIONS FOCONSHOP ==========
         const yCompany = 120;
         doc.fontSize(9)
           .fillColor('#333333')
@@ -59,7 +61,7 @@ export class InvoiceService {
           .text('Littoral, Cameroun', 340, yCompany + 41)
           .text('Tax ID: RC/DLA/2021/B/1043', 340, yCompany + 54);
 
-        // ========== DATE ET RÉFÉRENCE (à gauche) ==========
+        // ========== DATE ET RÉFÉRENCE ==========
         const yInfo = 120;
         doc.fontSize(9)
           .fillColor('#666666')
@@ -105,14 +107,13 @@ export class InvoiceService {
           .text(data.customer.email || 'N/A', 40, yBillTo + 35)
           .text(data.customer.phone || 'N/A', 40, yBillTo + 48);
 
-        // ========== PAYMENT DETAILS (à droite) ==========
+        // ========== PAYMENT DETAILS ==========
         const yPayment = 220;
         doc.fontSize(10)
           .fillColor('#333333')
           .font('Helvetica-Bold')
           .text('Payment Details', 340, yPayment);
 
-        // Badge MTN Mobile Money
         doc.roundedRect(340, yPayment + 18, 100, 24, 4)
           .fillAndStroke('#FFCC00', '#FFCC00');
         
@@ -127,7 +128,6 @@ export class InvoiceService {
           .text('MTN Mobile Money', 340, yPayment + 48)
           .text('Transaction: MTN-20261026', 340, yPayment + 61);
 
-        // Badge Status
         doc.roundedRect(340, yPayment + 80, 90, 22, 11)
           .fillAndStroke('#D4EDDA', '#28A745');
         
@@ -144,7 +144,6 @@ export class InvoiceService {
         // ========== TABLEAU DES PRODUITS ==========
         const tableTop = 360;
 
-        // En-tête du tableau
         doc.fillColor('#F8F9FA')
           .rect(40, tableTop, 515, 28)
           .fill();
@@ -157,10 +156,8 @@ export class InvoiceService {
           .text('Unit Price', 380, tableTop + 10, { width: 70, align: 'right' })
           .text('Total', 470, tableTop + 10, { width: 75, align: 'right' });
 
-        // Lignes des produits
         let yPosition = tableTop + 38;
         data.items.forEach((item: any, index: number) => {
-          // Ligne de séparation
           if (index > 0) {
             doc.strokeColor('#E0E0E0')
               .lineWidth(0.5)
@@ -169,29 +166,26 @@ export class InvoiceService {
               .stroke();
           }
 
-          // Nom du produit
           doc.fontSize(9)
             .fillColor('#333333')
             .font('Helvetica')
             .text(item.name, 50, yPosition, { width: 260 });
 
-          // Quantité
           doc.text(item.quantity.toString(), 330, yPosition, { 
             width: 30, 
             align: 'center' 
           });
 
-          // Prix unitaire
+          // ✅ Utilisation de la fonction formatAmount
           doc.text(
-            `${item.unitPrice.toLocaleString('fr-FR')} XAF`,
+            `${this.formatAmount(item.unitPrice)} XAF`,
             380,
             yPosition,
             { width: 70, align: 'right' }
           );
 
-          // Total
           doc.text(
-            `${item.total.toLocaleString('fr-FR')} XAF`,
+            `${this.formatAmount(item.total)} XAF`,
             470,
             yPosition,
             { width: 75, align: 'right' }
@@ -200,7 +194,6 @@ export class InvoiceService {
           yPosition += 30;
         });
 
-        // Ligne de séparation finale
         doc.strokeColor('#E0E0E0')
           .lineWidth(1)
           .moveTo(40, yPosition + 5)
@@ -210,51 +203,47 @@ export class InvoiceService {
         // ========== TOTAUX ==========
         const yTotals = yPosition + 25;
 
-        // Sous-total
+        // ✅ Tous les montants utilisent formatAmount
         doc.fontSize(9)
           .fillColor('#666666')
           .font('Helvetica')
           .text('Subtotal:', 380, yTotals, { width: 90, align: 'left' })
           .fillColor('#333333')
           .text(
-            `${data.subtotal.toLocaleString('fr-FR')} XAF`,
+            `${this.formatAmount(data.subtotal)} XAF`,
             470,
             yTotals,
             { width: 75, align: 'right' }
           );
 
-        // Frais de livraison
         doc.fillColor('#666666')
           .text('Shipping (Express):', 380, yTotals + 18, { width: 90, align: 'left' })
           .fillColor('#333333')
           .text('1,500 XAF', 470, yTotals + 18, { width: 75, align: 'right' });
 
-        // TVA
         doc.fillColor('#666666')
           .text('Tax (TVA 19.25%):', 380, yTotals + 36, { width: 90, align: 'left' })
           .fillColor('#333333')
           .text(
-            `${Math.round(data.tax).toLocaleString('fr-FR')} XAF`,
+            `${this.formatAmount(Math.round(data.tax))} XAF`,
             470,
             yTotals + 36,
             { width: 75, align: 'right' }
           );
 
-        // Ligne de séparation
         doc.strokeColor('#E0E0E0')
           .lineWidth(0.5)
           .moveTo(380, yTotals + 52)
           .lineTo(555, yTotals + 52)
           .stroke();
 
-        // Total TTC
         doc.fontSize(11)
           .fillColor('#333333')
           .font('Helvetica-Bold')
           .text('Total Paid', 380, yTotals + 62, { width: 90, align: 'left' })
           .fontSize(14)
           .text(
-            `${Math.round(data.total + 1500).toLocaleString('fr-FR')} XAF`,
+            `${this.formatAmount(Math.round(data.total + 1500))} XAF`,
             450,
             yTotals + 60,
             { width: 95, align: 'right' }
@@ -292,7 +281,6 @@ export class InvoiceService {
             width: 515 
           });
 
-        // Contacts
         const contactsY = footerY + 45;
         doc.fontSize(8)
           .fillColor('#666666')
@@ -303,7 +291,6 @@ export class InvoiceService {
           .text('📞', 395, contactsY)
           .text('+237 690 28 98 92', 410, contactsY);
 
-        // Note finale
         doc.fontSize(7)
           .fillColor('#CCCCCC')
           .text('Need help with this order? Contact our support team', 40, contactsY + 25, {
