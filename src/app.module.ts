@@ -25,6 +25,7 @@ import { MetricsModule } from './admin/metrics/metrics.module';
 import { AdminVendorModule } from './admin/admin-vendor/admin-vendor.module';
 import { AdminOrderModule } from './admin/admin-order/admin-order.module';
 import { AdminModule } from './admin/admin.module';
+import { InvoiceModule } from './invoice/invoice.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
@@ -50,7 +51,9 @@ import { AdminModule } from './admin/admin.module';
     MetricsModule,
     AdminVendorModule,
     AdminOrderModule,
-    AdminModule,],
+    AdminModule,
+    InvoiceModule
+  ],
   controllers: [AppController],
   providers: [AppService,],
 })

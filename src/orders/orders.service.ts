@@ -132,8 +132,9 @@ export class OrdersService {
    * GUEST : création commande
    */
   async createGuestOrder(dto: CreateOrderDto) {
+  console.log('📦 Création de commande pour:', dto.guestEmail);
+  
   let totalAmount = 0;
-
   const itemsData: {
     variantId: number;
     name: string;
@@ -141,6 +142,7 @@ export class OrdersService {
     quantity: number;
   }[] = [];
 
+  // Calcul des items
   for (const item of dto.items) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: item.variantId },
@@ -162,6 +164,9 @@ export class OrdersService {
     });
   }
 
+  console.log('💰 Total calculé:', totalAmount);
+
+  // Création adresse
   const address = await this.prisma.address.create({
     data: {
       userId: null,
@@ -173,6 +178,9 @@ export class OrdersService {
     },
   });
 
+  console.log('📍 Adresse créée:', address.id);
+
+  // Création commande
   const order = await this.prisma.order.create({
     data: {
       userId: null,
@@ -187,7 +195,9 @@ export class OrdersService {
     include: { items: true, address: true },
   });
 
-  // ✅ Création de la facture EN PREMIER
+  console.log('✅ Commande créée:', order.id);
+
+  // Création facture
   const invoice = await this.prisma.invoice.create({
     data: {
       orderId: order.id,
@@ -197,38 +207,51 @@ export class OrdersService {
     },
   });
 
-  // ✅ Données fiables pour le PDF
-  const invoiceData = {
-    invoiceRef: invoice.reference,
-    orderDate: order.createdAt,
-    customer: {
-      name: order.guestName,
-      email: order.guestEmail,
-      phone: order.guestPhone,
-    },
-    items: order.items.map(i => ({
-      name: i.name,
-      quantity: i.quantity,
-      unitPrice: i.unitPrice,
-      total: i.unitPrice * i.quantity,
-    })),
-    subtotal: totalAmount,
-    tax: totalAmount * 0.1925,
-    total: totalAmount * 1.1925,
-  };
+  console.log('📄 Facture créée:', invoice.reference);
 
-  const pdf = await this.invoiceService.generateInvoicePdf(invoiceData);
-
-  if (!order.guestEmail) {
-    throw new BadRequestException('Email client manquant');
+  // ✅ Envoi de la facture par email (avec gestion d'erreur)
+  try {
+    if (!order.guestEmail) {
+      throw new BadRequestException('Email client manquant');
     }
+
+    const invoiceData = {
+      invoiceRef: invoice.reference,
+      orderDate: order.createdAt,
+      customer: {
+        name: order.guestName,
+        email: order.guestEmail,
+        phone: order.guestPhone,
+      },
+      items: order.items.map(i => ({
+        name: i.name,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        total: i.unitPrice * i.quantity,
+      })),
+      subtotal: totalAmount,
+      tax: totalAmount * 0.1925,
+      total: totalAmount * 1.1925,
+    };
+
+    console.log('📧 Génération et envoi de la facture...');
+    const pdf = await this.invoiceService.generateInvoicePdf(invoiceData);
     
     await this.emailService.sendInvoiceEmail(
       order.guestEmail,
       invoice.reference,
       pdf
     );
+    
+    console.log('✅ Email de facture envoyé avec succès');
+    
+  } catch (error) {
+    // ⚠️ On log l'erreur mais on ne bloque pas la commande
+    console.error('❌ Erreur lors de l\'envoi de la facture:', error);
+    console.error('⚠️ La commande a été créée mais l\'email n\'a pas pu être envoyé');
+    // On ne throw pas l'erreur pour ne pas bloquer la création de commande
+  }
 
   return order;
- }
+}
 }

@@ -4,10 +4,13 @@ import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { VendorOrdersController } from './vendor-orders.controller';
 import { EmailService } from 'src/email/email.service';
-import { InvoiceService } from 'src/invoice/invoice.service';
+import { InvoiceModule } from '../invoice/invoice.module';
 
 @Module({
+  imports: [ 
+    InvoiceModule
+  ],
   controllers: [OrdersController,VendorOrdersController,],
-  providers: [OrdersService,EmailService,InvoiceService],
+  providers: [OrdersService,EmailService],
 })
 export class OrdersModule {}
