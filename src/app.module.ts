@@ -26,6 +26,7 @@ import { AdminVendorModule } from './admin/admin-vendor/admin-vendor.module';
 import { AdminOrderModule } from './admin/admin-order/admin-order.module';
 import { AdminModule } from './admin/admin.module';
 import { InvoiceModule } from './invoice/invoice.module';
+import { AdminInvoicesModule } from './admin/invoices/admin-invoices.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
@@ -52,7 +53,8 @@ import { InvoiceModule } from './invoice/invoice.module';
     AdminVendorModule,
     AdminOrderModule,
     AdminModule,
-    InvoiceModule
+    InvoiceModule,
+    AdminInvoicesModule,
   ],
   controllers: [AppController],
   providers: [AppService,],
