@@ -166,30 +166,69 @@ export class InvoiceService {
               .stroke();
           }
 
+          // Nom du produit
           doc.fontSize(9)
             .fillColor('#333333')
             .font('Helvetica')
             .text(item.name, 50, yPosition, { width: 260 });
 
+          // Quantité
           doc.text(item.quantity.toString(), 330, yPosition, { 
             width: 30, 
             align: 'center' 
           });
 
-          // ✅ Utilisation de la fonction formatAmount
-          doc.text(
-            `${this.formatAmount(item.unitPrice)} XAF`,
-            380,
-            yPosition,
-            { width: 70, align: 'right' }
-          );
+          // Prix unitaire
+          doc.fontSize(9)
+            .fillColor('#333333')
+            .font('Helvetica')
+            .text(
+              `${this.formatAmount(item.unitPrice)} XAF`,
+              380,
+              yPosition,
+              { width: 70, align: 'right' }
+            );
 
+          // Total
           doc.text(
             `${this.formatAmount(item.total)} XAF`,
             470,
             yPosition,
             { width: 75, align: 'right' }
           );
+
+          // ✅ PROMOTION (si présente)
+          if (item.promotionApplied && item.originalUnitPrice) {
+            yPosition += 14; // Espace pour la ligne de promotion
+            
+            // Prix original barré manuellement
+            const strikeY = yPosition - 3;
+            doc.fontSize(7)
+              .fillColor('#999999')
+              .font('Helvetica')
+              .text(
+                `Was: ${this.formatAmount(item.originalUnitPrice)} XAF`,
+                380,
+                yPosition,
+                { width: 70, align: 'right' }
+              );
+            
+            // Ligne de barré manuel
+            doc.strokeColor('#999999')
+              .lineWidth(0.5)
+              .moveTo(395, strikeY)
+              .lineTo(440, strikeY)
+              .stroke();
+
+            // Badge promo vert à gauche
+            doc.rect(50, yPosition - 2, 85, 11)
+              .fillAndStroke('#28A745', '#28A745');
+            
+            doc.fontSize(7)
+              .fillColor('#FFFFFF')
+              .font('Helvetica-Bold')
+              .text('🎉 Promo applied', 52, yPosition + 1, { width: 81 });
+          }
 
           yPosition += 30;
         });
@@ -203,7 +242,7 @@ export class InvoiceService {
         // ========== TOTAUX ==========
         const yTotals = yPosition + 25;
 
-        // ✅ Tous les montants utilisent formatAmount
+        // Sous-total
         doc.fontSize(9)
           .fillColor('#666666')
           .font('Helvetica')
@@ -216,36 +255,29 @@ export class InvoiceService {
             { width: 75, align: 'right' }
           );
 
+        // Frais de livraison
         doc.fillColor('#666666')
           .text('Shipping (Express):', 380, yTotals + 18, { width: 90, align: 'left' })
           .fillColor('#333333')
           .text('1,500 XAF', 470, yTotals + 18, { width: 75, align: 'right' });
 
-        doc.fillColor('#666666')
-          .text('Tax (TVA 19.25%):', 380, yTotals + 36, { width: 90, align: 'left' })
-          .fillColor('#333333')
-          .text(
-            `${this.formatAmount(Math.round(data.tax))} XAF`,
-            470,
-            yTotals + 36,
-            { width: 75, align: 'right' }
-          );
-
+        // ✅ Ligne de séparation (sans TVA)
         doc.strokeColor('#E0E0E0')
           .lineWidth(0.5)
-          .moveTo(380, yTotals + 52)
-          .lineTo(555, yTotals + 52)
+          .moveTo(380, yTotals + 36)
+          .lineTo(555, yTotals + 36)
           .stroke();
 
+        // ✅ Total Paid (sans TVA)
         doc.fontSize(11)
           .fillColor('#333333')
           .font('Helvetica-Bold')
-          .text('Total Paid', 380, yTotals + 62, { width: 90, align: 'left' })
+          .text('Total Paid', 380, yTotals + 46, { width: 90, align: 'left' })
           .fontSize(14)
           .text(
-            `${this.formatAmount(Math.round(data.total + 1500))} XAF`,
+            `${this.formatAmount(data.subtotal + 1500)} XAF`, // ✅ Subtotal + shipping
             450,
-            yTotals + 60,
+            yTotals + 44,
             { width: 95, align: 'right' }
           );
 

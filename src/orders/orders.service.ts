@@ -5,6 +5,7 @@ import {OrderStatus} from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order-item-dto';
 import { EmailService } from '../email/email.service';
 import { InvoiceService } from '../invoice/invoice.service';
+import { PromotionService } from '../promotion/promotion.service';
 
 @Injectable()
 export class OrdersService {
@@ -12,6 +13,7 @@ export class OrdersService {
       private readonly prisma: PrismaService,
       private readonly emailService: EmailService,
       private readonly invoiceService: InvoiceService,
+      private readonly promotionService: PromotionService,
     ) {}
 
   /**
@@ -129,237 +131,302 @@ export class OrdersService {
   }
 
   /**
-   * GUEST : création commande
+   * GUEST : création commande AVEC PROMOTIONS
    */
   async createGuestOrder(dto: CreateOrderDto) {
-  let totalAmount = 0;
+    console.log('📦 Création de commande pour:', dto.guestEmail);
 
-  const itemsData: {
-    variantId: number;
-    name: string;
-    unitPrice: number;
-    quantity: number;
-  }[] = [];
+    let totalAmount = 0;
+    const itemsData: {
+      variantId: number;
+      name: string;
+      unitPrice: number;
+      quantity: number;
+      promotionApplied: boolean;
+      originalUnitPrice: number | null;
+    }[] = [];
 
-  for (const item of dto.items) {
-    const variant = await this.prisma.productVariant.findUnique({
-      where: { id: item.variantId },
-      include: { product: true },
-    });
+    // ✅ Calcul avec promotions
+    for (const item of dto.items) {
+      const variant = await this.prisma.productVariant.findUnique({
+        where: { id: item.variantId },
+        include: { product: true },
+      });
 
-    if (!variant) {
-      throw new NotFoundException(`Variant ${item.variantId} introuvable`);
+      if (!variant) {
+        throw new NotFoundException(`Variant ${item.variantId} introuvable`);
+      }
+
+      // ✅ Vérifier s'il y a une promotion active
+      const promo = await this.promotionService.getActivePromotion(
+        variant.productId,
+      );
+
+      const originalPrice = variant.price;
+      const unitPrice = this.promotionService.applyPromotion(
+        originalPrice,
+        promo,
+      );
+
+      totalAmount += unitPrice * item.quantity;
+
+      itemsData.push({
+        variantId: variant.id,
+        name: variant.product.title,
+        unitPrice,
+        quantity: item.quantity,
+        promotionApplied: promo ? true : false,
+        originalUnitPrice: promo ? originalPrice : null,
+      });
     }
 
-    const unitPrice = variant.price;
-    totalAmount += unitPrice * item.quantity;
+    console.log('💰 Total calculé:', totalAmount);
 
-    itemsData.push({
-      variantId: variant.id,
-      name: variant.product.title,
-      unitPrice,
-      quantity: item.quantity,
-    });
-  }
-
-  const address = await this.prisma.address.create({
-    data: {
-      userId: null,
-      fullName: dto.address.fullName,
-      phone: dto.address.phone,
-      addressLine: dto.address.addressLine,
-      city: dto.address.city,
-      country: dto.address.country,
-    },
-  });
-
-  const order = await this.prisma.order.create({
-    data: {
-      userId: null,
-      guestName: dto.guestName,
-      guestEmail: dto.guestEmail,
-      guestPhone: dto.guestPhone,
-      addressId: address.id,
-      status: OrderStatus.PENDING,
-      totalAmount,
-      items: { create: itemsData },
-    },
-    include: { items: true, address: true },
-  });
-
-  // ✅ Création de la facture EN PREMIER
-  const invoice = await this.prisma.invoice.create({
-    data: {
-      orderId: order.id,
-      reference: `INV-${Date.now()}`,
-      type: 'DIGITAL',
-      total: totalAmount,
-    },
-  });
-
-  // ✅ Données fiables pour le PDF
-  const invoiceData = {
-    invoiceRef: invoice.reference,
-    orderDate: order.createdAt,
-    customer: {
-      name: order.guestName,
-      email: order.guestEmail,
-      phone: order.guestPhone,
-    },
-    items: order.items.map(i => ({
-      name: i.name,
-      quantity: i.quantity,
-      unitPrice: i.unitPrice,
-      total: i.unitPrice * i.quantity,
-    })),
-    subtotal: totalAmount,
-    tax: totalAmount * 0.1925,
-    total: totalAmount * 1.1925,
-  };
-
-  const pdf = await this.invoiceService.generateInvoicePdf(invoiceData);
-
-  if (!order.guestEmail) {
-    throw new BadRequestException('Email client manquant');
-    }
-    
-    await this.emailService.sendInvoiceEmail(
-      order.guestEmail,
-      invoice.reference,
-      pdf
-    );
-
-  return order;
- }
-
- /**
- * USER CONNECTÉ : création commande
- */
-async createAuthenticatedUserOrder(userId: number, dto: CreateOrderDto) {
-  console.log('📦 Création de commande pour utilisateur:', userId);
-  
-  let totalAmount = 0;
-  const itemsData: {
-    variantId: number;
-    name: string;
-    unitPrice: number;
-    quantity: number;
-  }[] = [];
-
-  // Calcul des items
-  for (const item of dto.items) {
-    const variant = await this.prisma.productVariant.findUnique({
-      where: { id: item.variantId },
-      include: { product: true },
-    });
-
-    if (!variant) {
-      throw new NotFoundException(`Variant ${item.variantId} introuvable`);
-    }
-
-    const unitPrice = variant.price;
-    totalAmount += unitPrice * item.quantity;
-
-    itemsData.push({
-      variantId: variant.id,
-      name: variant.product.title,
-      unitPrice,
-      quantity: item.quantity,
-    });
-  }
-
-  console.log('💰 Total calculé:', totalAmount);
-
-  // Récupérer l'utilisateur
-  const user = await this.prisma.user.findUnique({
-    where: { id: userId },
-  });
-
-  if (!user) {
-    throw new NotFoundException('Utilisateur introuvable');
-  }
-
-  // Création adresse
-  const address = await this.prisma.address.create({
-    data: {
-      userId: userId,
-      fullName: dto.address.fullName,
-      phone: dto.address.phone,
-      addressLine: dto.address.addressLine,
-      city: dto.address.city,
-      country: dto.address.country,
-    },
-  });
-
-  console.log('📍 Adresse créée:', address.id);
-
-  // Création commande
-  const order = await this.prisma.order.create({
-    data: {
-      userId: userId,
-      addressId: address.id,
-      status: OrderStatus.PENDING,
-      totalAmount,
-      items: { create: itemsData },
-    },
-    include: { items: true, address: true },
-  });
-
-  console.log('✅ Commande créée:', order.id);
-
-  // Création facture
-  const invoice = await this.prisma.invoice.create({
-    data: {
-      orderId: order.id,
-      reference: `INV-${Date.now()}`,
-      type: 'DIGITAL',
-      total: totalAmount,
-    },
-  });
-
-  console.log('📄 Facture créée:', invoice.reference);
-
-  // ✅ Envoi de la facture par email
-  try {
-    if (!user.email) {
-      throw new BadRequestException('Email utilisateur manquant');
-    }
-
-    const invoiceData = {
-      invoiceRef: invoice.reference,
-      orderDate: order.createdAt,
-      customer: {
-        name: user.username,
-        email: user.email,
-        phone: user.phone || 'N/A',
+    // Création adresse
+    const address = await this.prisma.address.create({
+      data: {
+        userId: null,
+        fullName: dto.address.fullName,
+        phone: dto.address.phone,
+        addressLine: dto.address.addressLine,
+        city: dto.address.city,
+        country: dto.address.country,
       },
-      items: order.items.map(i => ({
-        name: i.name,
-        quantity: i.quantity,
-        unitPrice: i.unitPrice,
-        total: i.unitPrice * i.quantity,
-      })),
-      subtotal: totalAmount,
-      tax: totalAmount * 0.1925,
-      total: totalAmount * 1.1925,
-    };
+    });
 
-    console.log('📧 Génération et envoi de la facture...');
-    const pdf = await this.invoiceService.generateInvoicePdf(invoiceData);
-    
-    await this.emailService.sendInvoiceEmail(
-      user.email,
-      invoice.reference,
-      pdf
-    );
-    
-    console.log('✅ Email de facture envoyé avec succès');
-    
-  } catch (error) {
-    console.error('❌ Erreur lors de l\'envoi de la facture:', error);
-    console.error('⚠️ La commande a été créée mais l\'email n\'a pas pu être envoyé');
+    console.log('📍 Adresse créée:', address.id);
+
+    // Création commande
+    const order = await this.prisma.order.create({
+      data: {
+        userId: null,
+        guestName: dto.guestName,
+        guestEmail: dto.guestEmail,
+        guestPhone: dto.guestPhone,
+        addressId: address.id,
+        status: OrderStatus.PENDING,
+        totalAmount,
+        items: {
+          create: itemsData.map(item => ({
+            variantId: item.variantId,
+            name: item.name,
+            unitPrice: item.unitPrice,
+            quantity: item.quantity,
+          })),
+        },
+      },
+      include: { items: true, address: true },
+    });
+
+    console.log('✅ Commande créée:', order.id);
+
+    // Création facture
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        orderId: order.id,
+        reference: `INV-${Date.now()}`,
+        type: 'DIGITAL',
+        total: totalAmount,
+      },
+    });
+
+    console.log('📄 Facture créée:', invoice.reference);
+
+    // ✅ Envoi de la facture par email
+    try {
+      if (!order.guestEmail) {
+        throw new BadRequestException('Email client manquant');
+      }
+
+      const invoiceData = {
+        invoiceRef: invoice.reference,
+        orderDate: order.createdAt,
+        customer: {
+          name: order.guestName,
+          email: order.guestEmail,
+          phone: order.guestPhone,
+        },
+        items: order.items.map((i, index) => ({
+          name: i.name,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          total: i.unitPrice * i.quantity,
+          promotionApplied: itemsData[index]?.promotionApplied || false,
+          originalUnitPrice: itemsData[index]?.originalUnitPrice || null,
+        })),
+        subtotal: totalAmount,
+        total: totalAmount, // ✅ Pas de TVA
+      };
+
+      console.log('📧 Génération et envoi de la facture...');
+      const pdf = await this.invoiceService.generateInvoicePdf(invoiceData);
+
+      await this.emailService.sendInvoiceEmail(
+        order.guestEmail,
+        invoice.reference,
+        pdf
+      );
+
+      console.log('✅ Email de facture envoyé avec succès');
+
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'envoi de la facture:', error);
+      console.error('⚠️ La commande a été créée mais l\'email n\'a pas pu être envoyé');
+    }
+
+    return order;
   }
 
-  return order;
-}
+  /**
+   * USER CONNECTÉ : création commande AVEC PROMOTIONS
+   */
+  async createAuthenticatedUserOrder(userId: number, dto: CreateOrderDto) {
+    console.log('📦 Création de commande pour utilisateur:', userId);
+
+    let totalAmount = 0;
+    const itemsData: {
+      variantId: number;
+      name: string;
+      unitPrice: number;
+      quantity: number;
+      promotionApplied: boolean;
+      originalUnitPrice: number | null;
+    }[] = [];
+
+    // ✅ Calcul avec promotions
+    for (const item of dto.items) {
+      const variant = await this.prisma.productVariant.findUnique({
+        where: { id: item.variantId },
+        include: { product: true },
+      });
+
+      if (!variant) {
+        throw new NotFoundException(`Variant ${item.variantId} introuvable`);
+      }
+
+      // ✅ Vérifier s'il y a une promotion active
+      const promo = await this.promotionService.getActivePromotion(
+        variant.productId,
+      );
+
+      const originalPrice = variant.price;
+      const unitPrice = this.promotionService.applyPromotion(
+        originalPrice,
+        promo,
+      );
+
+      totalAmount += unitPrice * item.quantity;
+
+      itemsData.push({
+        variantId: variant.id,
+        name: variant.product.title,
+        unitPrice,
+        quantity: item.quantity,
+        promotionApplied: promo ? true : false,
+        originalUnitPrice: promo ? originalPrice : null,
+      });
+    }
+
+    console.log('💰 Total calculé:', totalAmount);
+
+    // Récupérer l'utilisateur
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Utilisateur introuvable');
+    }
+
+    // Création adresse
+    const address = await this.prisma.address.create({
+      data: {
+        userId: userId,
+        fullName: dto.address.fullName,
+        phone: dto.address.phone,
+        addressLine: dto.address.addressLine,
+        city: dto.address.city,
+        country: dto.address.country,
+      },
+    });
+
+    console.log('📍 Adresse créée:', address.id);
+
+    // Création commande
+    const order = await this.prisma.order.create({
+      data: {
+        userId: userId,
+        addressId: address.id,
+        status: OrderStatus.PENDING,
+        totalAmount,
+        items: {
+          create: itemsData.map(item => ({
+            variantId: item.variantId,
+            name: item.name,
+            unitPrice: item.unitPrice,
+            quantity: item.quantity,
+          })),
+        },
+      },
+      include: { items: true, address: true },
+    });
+
+    console.log('✅ Commande créée:', order.id);
+
+    // Création facture
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        orderId: order.id,
+        reference: `INV-${Date.now()}`,
+        type: 'DIGITAL',
+        total: totalAmount,
+      },
+    });
+
+    console.log('📄 Facture créée:', invoice.reference);
+
+    // ✅ Envoi de la facture par email
+    try {
+      if (!user.email) {
+        throw new BadRequestException('Email utilisateur manquant');
+      }
+
+      const invoiceData = {
+        invoiceRef: invoice.reference,
+        orderDate: order.createdAt,
+        customer: {
+          name: user.username,
+          email: user.email,
+          phone: user.phone || 'N/A',
+        },
+        items: order.items.map((i, index) => ({
+          name: i.name,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          total: i.unitPrice * i.quantity,
+          promotionApplied: itemsData[index]?.promotionApplied || false,
+          originalUnitPrice: itemsData[index]?.originalUnitPrice || null,
+        })),
+        subtotal: totalAmount,
+        total: totalAmount, // ✅ Pas de TVA
+      };
+
+      console.log('📧 Génération et envoi de la facture...');
+      const pdf = await this.invoiceService.generateInvoicePdf(invoiceData);
+
+      await this.emailService.sendInvoiceEmail(
+        user.email,
+        invoice.reference,
+        pdf
+      );
+
+      console.log('✅ Email de facture envoyé avec succès');
+
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'envoi de la facture:', error);
+      console.error('⚠️ La commande a été créée mais l\'email n\'a pas pu être envoyé');
+    }
+
+    return order;
+  }
 }

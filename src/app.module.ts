@@ -27,6 +27,8 @@ import { AdminOrderModule } from './admin/admin-order/admin-order.module';
 import { AdminModule } from './admin/admin.module';
 import { InvoiceModule } from './invoice/invoice.module';
 import { AdminInvoicesModule } from './admin/invoices/admin-invoices.module';
+import { SocialProofModule } from './social-proof/social-proof.module';
+import { PromotionModule } from './promotion/promotion.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
@@ -55,6 +57,8 @@ import { AdminInvoicesModule } from './admin/invoices/admin-invoices.module';
     AdminModule,
     InvoiceModule,
     AdminInvoicesModule,
+    SocialProofModule,
+    PromotionModule,
   ],
   controllers: [AppController],
   providers: [AppService,],

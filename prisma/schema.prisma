@@ -72,6 +72,8 @@ enum CouponType {
   PERCENTAGE
 }
 
+
+
 enum InvoiceType {
   DIGITAL
   PHYSICAL
@@ -211,6 +213,7 @@ model Product {
 
   variants ProductVariant[]
   media    Media[]
+  promotions Promotion[]
 
   @@index([vendorId])
   @@index([categoryId])
@@ -244,6 +247,24 @@ model ProductVariant {
   OrderItem OrderItem[]
 
   @@index([productId])
+}
+
+model Promotion {
+  id        Int       @id @default(autoincrement())
+
+  productId Int
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  type      CouponType
+  value     Float
+
+  startAt   DateTime
+  endAt     DateTime
+
+  createdAt DateTime  @default(now())
+
+  @@index([productId])
+  @@index([startAt, endAt])
 }
 
 model Media {
