@@ -207,6 +207,7 @@ model Product {
   vendorId    Int?
   category    Category?      @relation(fields: [categoryId], references: [id])
   categoryId  Int?
+  slug        String?         @unique
   title       String
   description String?
   createdAt   DateTime       @default(now())
@@ -214,10 +215,21 @@ model Product {
   variants ProductVariant[]
   media    Media[]
   promotions Promotion[]
+  slugHistory ProductSlugHistory[]
 
   @@index([vendorId])
   @@index([categoryId])
   @@index([createdAt])
+}
+
+model ProductSlugHistory {
+  id        Int      @id @default(autoincrement())
+  product   Product  @relation(fields: [productId], references: [id])
+  productId Int
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([productId])
 }
 
 model Category {
