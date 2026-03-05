@@ -101,4 +101,14 @@ export class ProductController {
       req.user.vendorId,
     );
   }
+
+  @UseGuards(JwtAuthGuard, VendorApprovedGuard)
+  @Patch(':id/status')
+  async changeStatus(
+    @Param('id') id: string,
+    @Body('isActive') isActive: boolean,
+    @Req() req: any,
+  ) {
+    return this.productService.toggleActiveStatus(Number(id), req.user.vendorId, isActive);
+  }
 }

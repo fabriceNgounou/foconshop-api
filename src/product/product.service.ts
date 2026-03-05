@@ -262,4 +262,23 @@ export class ProductService {
       redirectTo: history.product.slug,
     };
   }
+
+  /* -------------------------------------------------------------------------- */
+  /*                                  Toggle Active Status                                */
+  /* -------------------------------------------------------------------------- */
+
+
+  async toggleActiveStatus(productId: number, vendorProfileId: number, status: boolean) {
+  const product = await this.prisma.product.findUnique({
+    where: { id: productId },
+  });
+
+  if (!product) throw new NotFoundException('Product not found');
+  if (product.vendorId !== vendorProfileId) throw new ForbiddenException('You cannot change this product');
+
+  return this.prisma.product.update({
+    where: { id: productId },
+    data: { isActive: status },
+  });
+}
 }
