@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { PromotionService } from '../promotion/promotion.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CartService {
@@ -151,4 +152,77 @@ export class CartService {
 
     return { items, subtotal, total: subtotal };
   }
+
+
+  /* ===========================
+   GET CART RECOMMENDATIONS
+   =========================== */
+async getCartRecommendations(userId: number) {
+  const cart = await this.prisma.cart.findUnique({
+    where: { userId },
+    include: {
+      items: {
+        include: {
+          productVariant: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!cart || cart.items.length === 0) return [];
+
+  /* -----------------------------
+     récupérer les produits du panier
+  ----------------------------- */
+  const cartProducts = cart.items
+    .map((item) => item.productVariant.product)
+    .filter((p): p is NonNullable<typeof p> => p !== null); // filtrer les null
+
+  const categoryIds: number[] = cartProducts
+    .map((p) => p.categoryId)
+    .filter((id): id is number => id !== null);
+
+  const cartProductIds: number[] = cartProducts
+    .map((p) => p.id)
+    .filter((id): id is number => id !== null);
+
+  /* -----------------------------
+     extraire tous les mots titres
+  ----------------------------- */
+  const words = cartProducts.flatMap((p) =>
+    p.title
+      .toLowerCase()
+      .split(' ')
+      .filter((w) => w.length > 2),
+  );
+
+  const uniqueWords = [...new Set(words)];
+
+  const titleFilters: Prisma.ProductWhereInput[] = uniqueWords.map((word) => ({
+    title: { contains: word, mode: 'insensitive' },
+  }));
+
+  /* -----------------------------
+     1 seule requête recommandations
+  ----------------------------- */
+  const recommendations = await this.prisma.product.findMany({
+    where: {
+      isActive: true,
+      id: { notIn: cartProductIds },
+      categoryId: { in: categoryIds },
+      OR: titleFilters,
+    },
+    include: {
+      category: { select: { id: true, name: true, slug: true } },
+      vendor: { select: { id: true, businessName: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return recommendations;
+}
 }

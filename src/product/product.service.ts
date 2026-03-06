@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -232,36 +233,56 @@ export class ProductService {
   }
 
   async findOnePublicBySlug(slug: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { slug },
-      include: {
-        vendor: {
-          select: {
-            id: true,
-            status: true,
-            codeUnique: true,
-            businessName: true,
-          },
-        },
-      },
-    });
+  const product = await this.prisma.product.findUnique({
+    where: { slug },
+    include: {
+      vendor: { select: { id: true, status: true, codeUnique: true, businessName: true } },
+      category: { select: { id: true, name: true, slug: true } },
+    },
+  });
 
-    if (product) return product;
-
-    // 🔁 recherche dans l'historique
+  if (!product) {
     const history = await this.prisma.productSlugHistory.findUnique({
       where: { slug },
       include: { product: true },
     });
 
-    if (!history) {
-      throw new NotFoundException('Product not found');
-    }
+    if (!history) throw new NotFoundException('Product not found');
 
-    return {
-      redirectTo: history.product.slug,
-    };
+    return { redirectTo: history.product.slug };
   }
+
+  /* -----------------------------
+     extraire mots du titre
+  ----------------------------- */
+  const words = product.title
+    .toLowerCase()
+    .split(' ')
+    .filter((w) => w.length > 3);
+
+  const titleFilters: Prisma.ProductWhereInput[] = words.map((word) => ({
+    title: { contains: word, mode: 'insensitive'},
+  }));
+
+  /* -----------------------------
+     chercher produits similaires
+  ----------------------------- */
+  const similarProducts = await this.prisma.product.findMany({
+    where: {
+      isActive: true,
+      id: { not: product.id },
+      categoryId: product.categoryId,
+      OR: titleFilters,
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      vendor: { select: { id: true, businessName: true } },
+      category: { select: { id: true, name: true, slug: true } },
+    },
+  });
+
+  return { product, similarProducts };
+}
 
   /* -------------------------------------------------------------------------- */
   /*                                  Toggle Active Status                                */

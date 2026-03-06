@@ -221,6 +221,8 @@ model Product {
   @@index([vendorId])
   @@index([categoryId])
   @@index([createdAt])
+  @@index([isActive])
+  @@index([categoryId, isActive])
 }
 
 model ProductSlugHistory {
