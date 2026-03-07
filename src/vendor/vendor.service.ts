@@ -42,11 +42,11 @@ export class VendorService {
         businessName: dto.businessName,
         description: dto.description,
         categoryId: dto.categoryId,
+        phone:dto.phone,
+        address: dto.address,
+        city: dto.city,
+        region: dto.region,
         slug,
-        phone: firstShop ? firstShop.phone : dto.phone,
-        address: firstShop ? firstShop.address : dto.address,
-        city: firstShop ? firstShop.city : dto.city,
-        region: firstShop ? firstShop.region : dto.region,
         userId
       }
     });
