@@ -89,4 +89,9 @@ export class VendorController {
     return this.vendorService.getMyVendorProfile(req.user.sub);
   }
 
+  @Get('my-kyc-documents')
+getMyKycDocuments(@Req() req: any) {
+  return this.vendorService.getMyKycDocuments(req.user.sub);
+}
+
 }

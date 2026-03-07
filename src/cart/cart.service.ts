@@ -219,6 +219,7 @@ async getCartRecommendations(userId: number) {
     include: {
       category: { select: { id: true, name: true, slug: true } },
       vendor: { select: { id: true, businessName: true } },
+      variants: { select: { id: true, name: true, price: true } },
     },
     orderBy: { createdAt: 'desc' },
   });

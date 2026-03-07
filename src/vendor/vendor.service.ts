@@ -228,5 +228,22 @@ async getVendorProfile(userId: number) {
 
   return vendor;
 }
+
+async getMyKycDocuments(userId: number) {
+  const vendor = await this.prisma.vendorProfile.findFirst({
+    where: { userId },
+    include: {
+      kycDocs: true,
+    },
+  });
+
+  if (!vendor) {
+    throw new NotFoundException('Vendor profile not found');
+  }
+
+  return vendor.kycDocs;
+}
+
+
   
 }

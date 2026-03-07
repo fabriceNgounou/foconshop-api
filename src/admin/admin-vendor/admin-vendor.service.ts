@@ -1,5 +1,5 @@
 // src/admin/vendors/admin-vendors.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -13,4 +13,29 @@ export class AdminVendorsService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  async getVendorKycDocuments(vendorId: number) {
+  const vendor = await this.prisma.vendorProfile.findUnique({
+    where: { id: vendorId },
+    include: {
+      kycDocs: true,
+      user: {
+        select: {
+          email: true,
+          phone: true,
+        },
+      },
+    },
+  });
+
+  if (!vendor) {
+    throw new NotFoundException('Vendor not found');
+  }
+
+  return {
+    vendorId: vendor.id,
+    businessName: vendor.businessName,
+    kycDocuments: vendor.kycDocs,
+  };
+}
 }

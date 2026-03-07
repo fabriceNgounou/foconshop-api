@@ -1,5 +1,5 @@
 // src/admin/vendors/admin-vendors.controller.ts
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, Param } from '@nestjs/common';
 import { AdminVendorsService } from './admin-vendor.service';
 import { Roles } from '../../auth/roles.decorator';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -15,4 +15,9 @@ export class AdminVendorsController {
   findAll() {
     return this.adminVendorsService.findAllVendors();
   }
+
+  @Get(':vendorId/kyc-documents')
+getVendorKycDocuments(@Param('vendorId') vendorId: string) {
+  return this.adminVendorsService.getVendorKycDocuments(Number(vendorId));
+}
 }
