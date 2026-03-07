@@ -19,6 +19,7 @@ export class VendorApprovedGuard implements CanActivate {
       throw new ForbiddenException('Vendor profile required');
     }
 
+    // ✅ CORRECTION : Vérifier que la boutique existe ET est approuvée
     const vendor = await this.prisma.vendorProfile.findUnique({
       where: { id: user.vendorId },
     });
@@ -28,10 +29,11 @@ export class VendorApprovedGuard implements CanActivate {
     }
 
     if (vendor.status !== VendorStatus.APPROVED) {
-      throw new ForbiddenException(
-        'Vendor account is not approved',
-      );
+      throw new ForbiddenException('Vendor account is not approved');
     }
+
+    // ✅ BONUS : Attacher les infos du vendeur à la requête pour usage ultérieur
+    request.vendor = vendor;
 
     return true;
   }

@@ -22,8 +22,7 @@ export class AdminOrdersService {
 
   // 2️⃣ Lister commandes pour un vendeur
   async findOrdersForVendor(vendorUserId: number) {
-    const vendor = await this.prisma.vendorProfile.findUnique({ where: { userId: vendorUserId } });
-    if (!vendor) return [];
+    const vendor = await this.prisma.vendorProfile.findFirst({ where: { userId: vendorUserId } });    if (!vendor) return [];
 
     return this.prisma.order.findMany({
       where: { items: { some: { variant: { product: { vendorId: vendor.id } } } } },

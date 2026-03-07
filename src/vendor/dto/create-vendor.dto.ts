@@ -14,19 +14,21 @@ export class CreateVendorDto {
   @IsOptional()
   @IsString()
   description?: string;
-
+  
   @IsInt()
   categoryId: number;
-
+  @IsOptional()
   @IsString()
   phone: string;
-
+  @IsOptional()
   @IsString()
   address: string;
 
+  @IsOptional()
   @IsString()
   city: string;
-
+  
+  @IsOptional()
   @IsString()
   region: string;
 }

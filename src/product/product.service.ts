@@ -83,19 +83,23 @@ export class ProductService {
   }
 
   async findMyProductsByUser(userId: number) {
-    const vendor = await this.prisma.vendorProfile.findUnique({
-      where: { userId },
-    });
+  // ✅ CORRECTION : findFirst au lieu de findUnique
+  const vendor = await this.prisma.vendorProfile.findFirst({
+    where: { 
+      userId,
+      status: 'APPROVED' // Optionnel : ne prendre que les boutiques approuvées
+    },
+  });
 
-    if (!vendor) {
-      throw new ForbiddenException('User is not a vendor');
-    }
-
-    return this.prisma.product.findMany({
-      where: { vendorId: vendor.id },
-      orderBy: { createdAt: 'desc' },
-    });
+  if (!vendor) {
+    throw new ForbiddenException('User is not a vendor or has no approved shop');
   }
+
+  return this.prisma.product.findMany({
+    where: { vendorId: vendor.id },
+    orderBy: { createdAt: 'desc' },
+  });
+}
 
   async findOnePublic(productId: number) {
   const product = await this.prisma.product.findUnique({

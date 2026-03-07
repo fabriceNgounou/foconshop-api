@@ -113,7 +113,7 @@ model User {
   role      Role           @default(CLIENT)
   createdAt DateTime       @default(now())
 
-  vendor    VendorProfile?
+  vendor    VendorProfile[]
   otpCodes  OtpCode[]
 
   cart      Cart?
@@ -159,9 +159,10 @@ model PasswordReset {
 model VendorProfile {
   id           Int           @id @default(autoincrement())
   user         User          @relation(fields: [userId], references: [id])
-  userId       Int           @unique
+  userId       Int           
 
   businessName String
+  slug         String? @unique
   description  String?
   category     Category?     @relation(fields: [categoryId], references: [id])
   categoryId   Int?
@@ -179,6 +180,7 @@ model VendorProfile {
   createdAt    DateTime      @default(now())
 
   @@index([categoryId])
+  @@index([userId])
 }
 
 

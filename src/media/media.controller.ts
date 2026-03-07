@@ -69,26 +69,25 @@ export class MediaController {
       },
     })
   )
-  async uploadProductMedia(
-    @Param('productId') productId: string,
-    @UploadedFile() file: Express.Multer.File,
-    @Req() req: any,
-  ) {
-    if (!file) {
-      throw new BadRequestException('Fichier requis');
-    }
+async uploadProductMedia(
+  @Param('productId') productId: string,
+  @UploadedFile() file: Express.Multer.File,
+  @Req() req: any,
+) {
+  if (!file) throw new BadRequestException('Fichier requis');
 
-    const mediaType = file.mimetype.startsWith('image/')
-      ? MediaType.IMAGE
-      : MediaType.VIDEO;
+  const mediaType = file.mimetype.startsWith('image/')
+    ? MediaType.IMAGE
+    : MediaType.VIDEO;
 
-    return this.mediaService.addProductMedia(
-      Number(productId),
-      req.user.vendorId,
-      `/uploads/${file.filename}`,
-      mediaType,
-    );
-  }
+  return this.mediaService.addProductMedia(
+    Number(productId),
+    req.user.vendorId,
+    `/uploads/${file.filename}`,
+    mediaType,
+    file.size, // ✅ transmettre la taille
+  );
+}
 
   // =========================
   // UPDATE MEDIA
@@ -97,25 +96,24 @@ export class MediaController {
   @Patch(':mediaId')
   @UseInterceptors(FileInterceptor('file'))
   async updateProductMedia(
-    @Param('mediaId') mediaId: string,
-    @UploadedFile() file: Express.Multer.File,
-    @Req() req: any,
-  ) {
-    if (!file) {
-      throw new BadRequestException('Fichier requis');
-    }
+  @Param('mediaId') mediaId: string,
+  @UploadedFile() file: Express.Multer.File,
+  @Req() req: any,
+) {
+  if (!file) throw new BadRequestException('Fichier requis');
 
-    const mediaType = file.mimetype.startsWith('image/')
-      ? MediaType.IMAGE
-      : MediaType.VIDEO;
+  const mediaType = file.mimetype.startsWith('image/')
+    ? MediaType.IMAGE
+    : MediaType.VIDEO;
 
-    return this.mediaService.updateProductMedia(
-      Number(mediaId),
-      req.user.vendorId,
-      `/uploads/${file.filename}`,
-      mediaType,
-    );
-  }
+  return this.mediaService.updateProductMedia(
+    Number(mediaId),
+    req.user.vendorId,
+    `/uploads/${file.filename}`,
+    mediaType,
+    file.size, // ✅ transmettre la taille
+  );
+}
 
   // =========================
   // DELETE MEDIA

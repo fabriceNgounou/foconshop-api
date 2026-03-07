@@ -27,9 +27,9 @@ export class VendorController {
    * CLIENT → demander à devenir vendeur
    */
   @Post()
-  @Roles(Role.CLIENT)
+  @Roles(Role.CLIENT,Role.VENDOR)
   becomeVendor(@Req() req: any, @Body() dto: CreateVendorDto,) {
-    return this.vendorService.createVendorProfile(req.user.sub, dto);
+    return this.vendorService.createVendor(req.user.sub, dto);
   }
 
   /**
