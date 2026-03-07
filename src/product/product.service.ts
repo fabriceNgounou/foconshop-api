@@ -113,7 +113,7 @@ export class ProductService {
           businessName: true,
         },
       },
-      productVariants: {
+      variants: {
         select: {
           id: true,
           name: true,
