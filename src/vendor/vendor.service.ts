@@ -66,6 +66,135 @@ export class VendorService {
     return vendors;
   }
 
+
+  // ✅ NOUVELLE : Récupérer toutes mes boutiques avec détails
+  async getMyShops(userId: number) {
+    const vendors = await this.prisma.vendorProfile.findMany({
+      where: { userId },
+      include: { 
+        kycDocs: true, 
+        products: {
+          select: {
+            id: true,
+            title: true,
+            isActive: true,
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          }
+        },
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return {
+      totalShops: vendors.length,
+      remainingSlots: 5 - vendors.length,
+      shops: vendors.map(vendor => ({
+        id: vendor.id,
+        businessName: vendor.businessName,
+        slug: vendor.slug,
+        description: vendor.description,
+        status: vendor.status,
+        codeUnique: vendor.codeUnique,
+        category: vendor.category,
+        phone: vendor.phone,
+        address: vendor.address,
+        city: vendor.city,
+        region: vendor.region,
+        createdAt: vendor.createdAt,
+        productsCount: vendor.products.length,
+        kycDocsCount: vendor.kycDocs.length,
+        kycDocs: vendor.kycDocs,
+      })),
+    };
+  }
+
+  // ✅ NOUVELLE : Version publique des boutiques
+  async getPublicShops(userId: number) {
+    const vendors = await this.prisma.vendorProfile.findMany({
+      where: { 
+        userId,
+        status: 'APPROVED',
+      },
+      include: { 
+        products: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          }
+        },
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return {
+      totalShops: vendors.length,
+      shops: vendors.map(vendor => ({
+        id: vendor.id,
+        businessName: vendor.businessName,
+        slug: vendor.slug,
+        description: vendor.description,
+        codeUnique: vendor.codeUnique,
+        category: vendor.category,
+        city: vendor.city,
+        region: vendor.region,
+        createdAt: vendor.createdAt,
+        productsCount: vendor.products.length,
+      })),
+    };
+  }
+
+  // ✅ NOUVELLE : Stats des boutiques
+  async getMyShopsCount(userId: number) {
+    const count = await this.prisma.vendorProfile.count({
+      where: { userId }
+    });
+
+    const approvedCount = await this.prisma.vendorProfile.count({
+      where: { 
+        userId,
+        status: 'APPROVED',
+      }
+    });
+
+    const pendingCount = await this.prisma.vendorProfile.count({
+      where: { 
+        userId,
+        status: 'PENDING',
+      }
+    });
+
+    const rejectedCount = await this.prisma.vendorProfile.count({
+      where: { 
+        userId,
+        status: 'REJECTED',
+      }
+    });
+
+    return {
+      total: count,
+      approved: approvedCount,
+      pending: pendingCount,
+      rejected: rejectedCount,
+      remainingSlots: 5 - count,
+    };
+  }
+
+
   async getById(id: number) {
     const vendor = await this.prisma.vendorProfile.findUnique({
       where: { id },

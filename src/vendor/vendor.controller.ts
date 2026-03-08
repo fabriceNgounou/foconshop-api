@@ -50,6 +50,36 @@ export class VendorController {
   }
 
   // =========================
+  // 🏪 GESTION DES BOUTIQUES
+  // =========================
+
+  /**
+   * ✅ VENDOR → Voir toutes mes boutiques (privé)
+   */
+  @Get('my-shops')
+  @Roles(Role.VENDOR)
+  getMyShops(@Req() req: any) {
+    return this.vendorService.getMyShops(req.user.sub);
+  }
+
+  /**
+   * ✅ VENDOR → Statistiques de mes boutiques
+   */
+  @Get('my-shops/stats')
+  @Roles(Role.VENDOR)
+  getMyShopsStats(@Req() req: any) {
+    return this.vendorService.getMyShopsCount(req.user.sub);
+  }
+
+  /**
+   * ✅ PUBLIC → Voir les boutiques approuvées d'un vendeur (par userId)
+   */
+  @Get('user/:userId/shops')
+  getPublicShopsByUser(@Param('userId') userId: string) {
+    return this.vendorService.getPublicShops(Number(userId));
+  }
+
+  // =========================
   //  Upload avec fichiers physiques
   // =========================
 
