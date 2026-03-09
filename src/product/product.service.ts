@@ -250,6 +250,7 @@ export class ProductService {
     include: {
       vendor: { select: { id: true, status: true, codeUnique: true, businessName: true } },
       category: { select: { id: true, name: true, slug: true } },
+      variants: { select: { id: true, name: true, price: true } },
     },
   });
 
