@@ -13,10 +13,6 @@ import { UpdateProductDto } from './dto/update-product.dto';
 export class ProductService {
   constructor(private prisma: PrismaService) {}
 
-  /* -------------------------------------------------------------------------- */
-  /*                               UTILITAIRE SLUG                               */
-  /* -------------------------------------------------------------------------- */
-
   private slugify(text: string): string {
     return text
       .toLowerCase()
@@ -27,12 +23,8 @@ export class ProductService {
   }
 
   private buildSlug(title: string, productId: number): string {
-  return `${this.slugify(title)}-${productId}`;
-}
-
-  /* -------------------------------------------------------------------------- */
-  /*                                   CREATE                                   */
-  /* -------------------------------------------------------------------------- */
+    return `${this.slugify(title)}-${productId}`;
+  }
 
   async create(vendorId: number, dto: CreateProductDto) {
     const category = await this.prisma.category.findUnique({
@@ -43,7 +35,6 @@ export class ProductService {
       throw new NotFoundException('Category not found');
     }
 
-    // 1️⃣ création sans slug (id encore inconnu)
     const product = await this.prisma.product.create({
       data: {
         title: dto.title,
@@ -53,7 +44,6 @@ export class ProductService {
       },
     });
 
-    // 2️⃣ génération du slug après création
     const slug = this.buildSlug(product.title, product.id);
 
     await this.prisma.product.update({
@@ -67,10 +57,6 @@ export class ProductService {
     };
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                                READ VENDOR                                 */
-  /* -------------------------------------------------------------------------- */
-
   async findMyProducts(vendorProfileId: number) {
     if (!vendorProfileId) {
       throw new BadRequestException('Vendor ID is required');
@@ -83,58 +69,52 @@ export class ProductService {
   }
 
   async findMyProductsByUser(userId: number) {
-  // ✅ CORRECTION : findFirst au lieu de findUnique
-  const vendor = await this.prisma.vendorProfile.findFirst({
-    where: { 
-      userId,
-      status: 'APPROVED' // Optionnel : ne prendre que les boutiques approuvées
-    },
-  });
+    const vendor = await this.prisma.vendorProfile.findFirst({
+      where: { userId, status: 'APPROVED' },
+    });
 
-  if (!vendor) {
-    throw new ForbiddenException('User is not a vendor or has no approved shop');
+    if (!vendor) {
+      throw new ForbiddenException(
+        'User is not a vendor or has no approved shop',
+      );
+    }
+
+    return this.prisma.product.findMany({
+      where: { vendorId: vendor.id },
+      orderBy: { createdAt: 'desc' },
+    });
   }
-
-  return this.prisma.product.findMany({
-    where: { vendorId: vendor.id },
-    orderBy: { createdAt: 'desc' },
-  });
-}
 
   async findOnePublic(productId: number) {
-  const product = await this.prisma.product.findUnique({
-    where: { id: productId },
-    include: {
-      vendor: {
-        select: {
-          id: true,
-          status: true,
-          codeUnique: true,
-          businessName: true,
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            status: true,
+            codeUnique: true,
+            businessName: true,
+          },
+        },
+        variants: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            intraCityDeliveryFee: true,     // ✅ AJOUT
+            interCityDeliveryFee: true,     // ✅ AJOUT
+          },
         },
       },
-      variants: {
-        select: {
-          id: true,
-          name: true,
-          price: true,
+    });
 
-        },
-      },
-    },
-  });
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
 
-  if (!product) {
-    throw new NotFoundException('Product not found');
+    return product;
   }
-
-  return product;
-}
-
-
-  /* -------------------------------------------------------------------------- */
-  /*                                   UPDATE                                   */
-  /* -------------------------------------------------------------------------- */
 
   async update(
     productId: number,
@@ -170,7 +150,8 @@ export class ProductService {
         });
       }
     }
-  return this.prisma.product.update({
+
+    return this.prisma.product.update({
       where: { id: productId },
       data: {
         ...dto,
@@ -178,10 +159,6 @@ export class ProductService {
       },
     });
   }
-
-  /* -------------------------------------------------------------------------- */
-  /*                                   DELETE                                   */
-  /* -------------------------------------------------------------------------- */
 
   async remove(productId: number, vendorProfileId: number) {
     const product = await this.prisma.product.findUnique({
@@ -218,10 +195,6 @@ export class ProductService {
     });
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                                 PUBLIC READ                                */
-  /* -------------------------------------------------------------------------- */
-
   async findAllPublic() {
     return this.prisma.product.findMany({
       orderBy: { createdAt: 'desc' },
@@ -245,74 +218,64 @@ export class ProductService {
   }
 
   async findOnePublicBySlug(slug: string) {
-  const product = await this.prisma.product.findUnique({
-    where: { slug },
-    include: {
-      vendor: { select: { id: true, status: true, codeUnique: true, businessName: true } },
-      category: { select: { id: true, name: true, slug: true } },
-      variants: { select: { id: true, name: true, price: true } },
-    },
-  });
-
-  if (!product) {
-    const history = await this.prisma.productSlugHistory.findUnique({
+    const product = await this.prisma.product.findUnique({
       where: { slug },
-      include: { product: true },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            status: true,
+            codeUnique: true,
+            businessName: true,
+          },
+        },
+        category: {
+          select: { id: true, name: true, slug: true },
+        },
+        variants: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            intraCityDeliveryFee: true,     // ✅ AJOUT
+            interCityDeliveryFee: true,     // ✅ AJOUT
+          },
+        },
+      },
     });
 
-    if (!history) throw new NotFoundException('Product not found');
+    if (!product) {
+      const history = await this.prisma.productSlugHistory.findUnique({
+        where: { slug },
+        include: { product: true },
+      });
 
-    return { redirectTo: history.product.slug };
+      if (!history) throw new NotFoundException('Product not found');
+
+      return { redirectTo: history.product.slug };
+    }
+
+    return { product };
   }
 
-  /* -----------------------------
-     extraire mots du titre
-  ----------------------------- */
-  const words = product.title
-    .toLowerCase()
-    .split(' ')
-    .filter((w) => w.length > 3);
+  async toggleActiveStatus(
+    productId: number,
+    vendorProfileId: number,
+    status: boolean,
+  ) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
 
-  const titleFilters: Prisma.ProductWhereInput[] = words.map((word) => ({
-    title: { contains: word, mode: 'insensitive'},
-  }));
+    if (!product) throw new NotFoundException('Product not found');
 
-  /* -----------------------------
-     chercher produits similaires
-  ----------------------------- */
-  const similarProducts = await this.prisma.product.findMany({
-    where: {
-      isActive: true,
-      id: { not: product.id },
-      categoryId: product.categoryId,
-      OR: titleFilters,
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      vendor: { select: { id: true, businessName: true } },
-      category: { select: { id: true, name: true, slug: true } },
-    },
-  });
+    if (product.vendorId !== vendorProfileId) {
+      throw new ForbiddenException('You cannot change this product');
+    }
 
-  return { product, similarProducts };
-}
-
-  /* -------------------------------------------------------------------------- */
-  /*                                  Toggle Active Status                                */
-  /* -------------------------------------------------------------------------- */
-
-
-  async toggleActiveStatus(productId: number, vendorProfileId: number, status: boolean) {
-  const product = await this.prisma.product.findUnique({
-    where: { id: productId },
-  });
-
-  if (!product) throw new NotFoundException('Product not found');
-  if (product.vendorId !== vendorProfileId) throw new ForbiddenException('You cannot change this product');
-
-  return this.prisma.product.update({
-    where: { id: productId },
-    data: { isActive: status },
-  });
-}
+    return this.prisma.product.update({
+      where: { id: productId },
+      data: { isActive: status },
+    });
+  }
 }

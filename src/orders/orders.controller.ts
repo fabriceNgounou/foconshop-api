@@ -9,6 +9,7 @@ import {
   Req,
   Post,
   UseGuards,
+  Delete
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -70,4 +71,13 @@ export class OrdersController {
       const userId = req.user.sub;
       return this.ordersService.createAuthenticatedUserOrder(userId, dto);
     }
+
+    @Delete(':id/cancel')
+  
+    cancelOrder(
+    @Param('id', ParseIntPipe) orderId: number,
+    @Req() req: any,
+  ) {
+    return this.ordersService.cancelOrder(orderId, req.user.id);
+  }
 }

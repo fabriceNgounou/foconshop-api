@@ -1,0 +1,12 @@
+-- CreateEnum
+CREATE TYPE "DeliveryType" AS ENUM ('INTRA_CITY', 'INTER_CITY');
+
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "deliveryCity" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "deliveryType" "DeliveryType" NOT NULL DEFAULT 'INTRA_CITY',
+ADD COLUMN     "vendorCity" TEXT NOT NULL DEFAULT '',
+ALTER COLUMN "deliveryFee" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "subtotal" SET DATA TYPE DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "OrderItem" ADD COLUMN     "originalUnitPrice" DOUBLE PRECISION;

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "ProductVariant" ADD COLUMN     "interCityDeliveryFee" DOUBLE PRECISION NOT NULL DEFAULT 1500,
+ADD COLUMN     "intraCityDeliveryFee" DOUBLE PRECISION NOT NULL DEFAULT 500;

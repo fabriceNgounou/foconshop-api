@@ -29,6 +29,7 @@ import { InvoiceModule } from './invoice/invoice.module';
 import { AdminInvoicesModule } from './admin/invoices/admin-invoices.module';
 import { SocialProofModule } from './social-proof/social-proof.module';
 import { PromotionModule } from './promotion/promotion.module';
+import { NotificationModule } from './notifications/notification.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
@@ -59,6 +60,7 @@ import { PromotionModule } from './promotion/promotion.module';
     AdminInvoicesModule,
     SocialProofModule,
     PromotionModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService,],

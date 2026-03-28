@@ -15,4 +15,14 @@ export class UpdateProductVariantDto {
   @IsInt()
   @Min(0)
   stock?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  intraCityDeliveryFee: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  interCityDeliveryFee: number;
 }

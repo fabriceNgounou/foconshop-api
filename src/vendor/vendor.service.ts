@@ -4,52 +4,56 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateKycDto } from './dto/create-kyc.dto';
 import { VendorStatus, Role } from '@prisma/client';
 import { CreateVendorDto } from './dto/create-vendor.dto';
+import { NotificationType } from '@prisma/client';
+import { NotificationService } from '../notifications/notification.service';
 import slugify from 'slugify';
 import { join } from 'path';
 import * as fs from 'fs';
 
 @Injectable()
 export class VendorService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService,
+              private notificationService: NotificationService) {}
 
   async createVendor(userId: number, dto: CreateVendorDto) {
-    // 1️⃣ vérifier le nombre de boutiques
-    const shopCount = await this.prisma.vendorProfile.count({
-      where: { userId }
-    });
+    const shopCount = await this.prisma.vendorProfile.count({ where: { userId } });
+    if (shopCount >= 5) throw new BadRequestException('Maximum 5 shops allowed');
 
-    if (shopCount >= 5) {
-      throw new BadRequestException('Maximum 5 shops allowed');
-    }
-
-    // 2️⃣ récupérer une boutique existante
-    const firstShop = await this.prisma.vendorProfile.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    // 3️⃣ générer slug
-    const baseSlug = slugify(dto.businessName, {
-      lower: true,
-      strict: true
-    });
-
+    const baseSlug = slugify(dto.businessName, { lower: true, strict: true });
     const slug = `${baseSlug}-${Date.now()}`;
 
-    // 4️⃣ création boutique
-    return this.prisma.vendorProfile.create({
+    const vendor = await this.prisma.vendorProfile.create({
       data: {
         businessName: dto.businessName,
         description: dto.description,
         categoryId: dto.categoryId,
-        phone:dto.phone,
+        phone: dto.phone,
         address: dto.address,
         city: dto.city,
         region: dto.region,
         slug,
-        userId
-      }
+        userId,
+      },
     });
+
+    // ⚡ Notification aux admins
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { id: true },
+    });
+
+    await Promise.all(
+      admins.map((admin) =>
+        this.notificationService.createNotification({
+          userId: admin.id,
+          title: 'Nouveau vendeur',
+          message: `Un vendeur (${vendor.businessName}) demande validation`,
+          type: NotificationType.NEW_VENDOR,
+        }),
+      ),
+    );
+
+    return vendor;
   }
 
   async getByUserId(userId: number) {

@@ -1,24 +1,30 @@
-// src/orders/orders.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import {OrderStatus} from '@prisma/client';
+import { OrderStatus, DeliveryType } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order-item-dto';
 import { EmailService } from '../email/email.service';
 import { InvoiceService } from '../invoice/invoice.service';
 import { PromotionService } from '../promotion/promotion.service';
+import { NotificationService } from '../notifications/notification.service'; // ✅ AJOUT
 
 @Injectable()
 export class OrdersService {
-   constructor(
-      private readonly prisma: PrismaService,
-      private readonly emailService: EmailService,
-      private readonly invoiceService: InvoiceService,
-      private readonly promotionService: PromotionService,
-    ) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+    private readonly invoiceService: InvoiceService,
+    private readonly promotionService: PromotionService,
+    private readonly notificationService: NotificationService, // ✅ AJOUT
+  ) {}
 
-  /**
-   * CLIENT : mes commandes
-   */
+  /* -------------------------------------------------------------------------- */
+  /*                               GET ORDERS                                   */
+  /* -------------------------------------------------------------------------- */
+
   async findMyOrders(userId: number) {
     return this.prisma.order.findMany({
       where: { userId },
@@ -27,9 +33,6 @@ export class OrdersService {
     });
   }
 
-  /**
-   * CLIENT : détail commande
-   */
   async findOneMyOrder(orderId: number, userId: number) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
@@ -51,9 +54,6 @@ export class OrdersService {
     return order;
   }
 
-  /**
-   * CLIENT : annulation
-   */
   async cancel(orderId: number, userId: number) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
@@ -64,7 +64,9 @@ export class OrdersService {
     }
 
     if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException('Cette commande ne peut plus être annulée');
+      throw new BadRequestException(
+        'Cette commande ne peut plus être annulée',
+      );
     }
 
     return this.prisma.order.update({
@@ -73,9 +75,6 @@ export class OrdersService {
     });
   }
 
-  /**
-   * CLIENT : statut commande + livraison
-   */
   async getOrderStatus(orderId: number, userId: number) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
@@ -93,9 +92,6 @@ export class OrdersService {
     };
   }
 
-  /**
-   * VENDEUR : commandes liées à ses produits
-   */
   async findOrdersForVendor(vendorId: number) {
     return this.prisma.order.findMany({
       where: {
@@ -130,59 +126,101 @@ export class OrdersService {
     });
   }
 
-  /**
-   * GUEST : création commande AVEC PROMOTIONS
-   */
-  async createGuestOrder(dto: CreateOrderDto) {
-    console.log('📦 Création de commande pour:', dto.guestEmail);
+  /* -------------------------------------------------------------------------- */
+  /*                          LOGIQUE COMMUNE                                   */
+  /* -------------------------------------------------------------------------- */
 
-    let totalAmount = 0;
-    const itemsData: {
-      variantId: number;
-      name: string;
-      unitPrice: number;
-      quantity: number;
-      promotionApplied: boolean;
-      originalUnitPrice: number | null;
-    }[] = [];
+  private async buildOrderData(dto: CreateOrderDto) {
+    let subtotal = 0;
+    let maxDeliveryFee = 0;
 
-    // ✅ Calcul avec promotions
+    let deliveryType: DeliveryType = DeliveryType.INTRA_CITY;
+    let vendorCity = '';
+
+    const itemsData: any[] = [];
+
     for (const item of dto.items) {
       const variant = await this.prisma.productVariant.findUnique({
         where: { id: item.variantId },
-        include: { product: true },
+        include: {
+          product: {
+            include: { vendor: true },
+          },
+        },
       });
 
       if (!variant) {
-        throw new NotFoundException(`Variant ${item.variantId} introuvable`);
+        throw new NotFoundException(
+          `Variant ${item.variantId} introuvable`,
+        );
       }
 
-      // ✅ Vérifier s'il y a une promotion active
+      if (!variant.product.vendor) {
+        throw new BadRequestException('Vendor introuvable');
+      }
+
       const promo = await this.promotionService.getActivePromotion(
         variant.productId,
       );
 
       const originalPrice = variant.price;
+
       const unitPrice = this.promotionService.applyPromotion(
         originalPrice,
         promo,
       );
 
-      totalAmount += unitPrice * item.quantity;
+      subtotal += unitPrice * item.quantity;
+
+      const clientCity = dto.address.city.toLowerCase().trim();
+      const sellerCity = variant.product.vendor.city.toLowerCase().trim();
+
+      const isSameCity = clientCity === sellerCity;
+
+      const fee = isSameCity
+        ? variant.intraCityDeliveryFee
+        : variant.interCityDeliveryFee;
+
+      if (fee > maxDeliveryFee) {
+        maxDeliveryFee = fee;
+      }
+
+      if (!isSameCity) {
+        deliveryType = DeliveryType.INTER_CITY;
+      }
+
+      if (!vendorCity) {
+        vendorCity = variant.product.vendor.city;
+      }
 
       itemsData.push({
         variantId: variant.id,
         name: variant.product.title,
         unitPrice,
-        quantity: item.quantity,
-        promotionApplied: promo ? true : false,
         originalUnitPrice: promo ? originalPrice : null,
+        quantity: item.quantity,
       });
     }
 
-    console.log('💰 Total calculé:', totalAmount);
+    const totalAmount = subtotal + maxDeliveryFee;
 
-    // Création adresse
+    return {
+      subtotal,
+      deliveryFee: maxDeliveryFee,
+      totalAmount,
+      deliveryType,
+      vendorCity,
+      itemsData,
+    };
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                              GUEST ORDER                                   */
+  /* -------------------------------------------------------------------------- */
+
+  async createGuestOrder(dto: CreateOrderDto) {
+    const orderData = await this.buildOrderData(dto);
+
     const address = await this.prisma.address.create({
       data: {
         userId: null,
@@ -194,9 +232,6 @@ export class OrdersService {
       },
     });
 
-    console.log('📍 Adresse créée:', address.id);
-
-    // Création commande
     const order = await this.prisma.order.create({
       data: {
         userId: null,
@@ -205,131 +240,53 @@ export class OrdersService {
         guestPhone: dto.guestPhone,
         addressId: address.id,
         status: OrderStatus.PENDING,
-        totalAmount,
+
+        subtotal: orderData.subtotal,
+        deliveryFee: orderData.deliveryFee,
+        totalAmount: orderData.totalAmount,
+        deliveryType: orderData.deliveryType,
+        deliveryCity: dto.address.city,
+        vendorCity: orderData.vendorCity,
+
         items: {
-          create: itemsData.map(item => ({
-            variantId: item.variantId,
-            name: item.name,
-            unitPrice: item.unitPrice,
-            quantity: item.quantity,
-          })),
+          create: orderData.itemsData,
         },
       },
-      include: { items: true, address: true },
-    });
-
-    console.log('✅ Commande créée:', order.id);
-
-    // Création facture
-    const invoice = await this.prisma.invoice.create({
-      data: {
-        orderId: order.id,
-        reference: `INV-${Date.now()}`,
-        type: 'DIGITAL',
-        total: totalAmount,
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+        address: true,
       },
     });
 
-    console.log('📄 Facture créée:', invoice.reference);
+    await this.handleInvoiceAndEmail(order, dto.guestEmail);
 
-    // ✅ Envoi de la facture par email
     try {
-      if (!order.guestEmail) {
-        throw new BadRequestException('Email client manquant');
-      }
-
-      const invoiceData = {
-        invoiceRef: invoice.reference,
-        orderDate: order.createdAt,
-        customer: {
-          name: order.guestName,
-          email: order.guestEmail,
-          phone: order.guestPhone,
-        },
-        items: order.items.map((i, index) => ({
-          name: i.name,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-          total: i.unitPrice * i.quantity,
-          promotionApplied: itemsData[index]?.promotionApplied || false,
-          originalUnitPrice: itemsData[index]?.originalUnitPrice || null,
-        })),
-        subtotal: totalAmount,
-        total: totalAmount, // ✅ Pas de TVA
-      };
-
-      console.log('📧 Génération et envoi de la facture...');
-      const pdf = await this.invoiceService.generateInvoicePdf(invoiceData);
-
-      await this.emailService.sendInvoiceEmail(
-        order.guestEmail,
-        invoice.reference,
-        pdf
-      );
-
-      console.log('✅ Email de facture envoyé avec succès');
-
+      await this.notificationService.notifyNewOrder(order);
     } catch (error) {
-      console.error('❌ Erreur lors de l\'envoi de la facture:', error);
-      console.error('⚠️ La commande a été créée mais l\'email n\'a pas pu être envoyé');
+      console.error('Notification error:', error);
     }
 
     return order;
   }
 
-  /**
-   * USER CONNECTÉ : création commande AVEC PROMOTIONS
-   */
-  async createAuthenticatedUserOrder(userId: number, dto: CreateOrderDto) {
-    console.log('📦 Création de commande pour utilisateur:', userId);
+  /* -------------------------------------------------------------------------- */
+  /*                         AUTH USER ORDER                                    */
+  /* -------------------------------------------------------------------------- */
 
-    let totalAmount = 0;
-    const itemsData: {
-      variantId: number;
-      name: string;
-      unitPrice: number;
-      quantity: number;
-      promotionApplied: boolean;
-      originalUnitPrice: number | null;
-    }[] = [];
+  async createAuthenticatedUserOrder(
+    userId: number,
+    dto: CreateOrderDto,
+  ) {
+    const orderData = await this.buildOrderData(dto);
 
-    // ✅ Calcul avec promotions
-    for (const item of dto.items) {
-      const variant = await this.prisma.productVariant.findUnique({
-        where: { id: item.variantId },
-        include: { product: true },
-      });
-
-      if (!variant) {
-        throw new NotFoundException(`Variant ${item.variantId} introuvable`);
-      }
-
-      // ✅ Vérifier s'il y a une promotion active
-      const promo = await this.promotionService.getActivePromotion(
-        variant.productId,
-      );
-
-      const originalPrice = variant.price;
-      const unitPrice = this.promotionService.applyPromotion(
-        originalPrice,
-        promo,
-      );
-
-      totalAmount += unitPrice * item.quantity;
-
-      itemsData.push({
-        variantId: variant.id,
-        name: variant.product.title,
-        unitPrice,
-        quantity: item.quantity,
-        promotionApplied: promo ? true : false,
-        originalUnitPrice: promo ? originalPrice : null,
-      });
-    }
-
-    console.log('💰 Total calculé:', totalAmount);
-
-    // Récupérer l'utilisateur
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -338,10 +295,9 @@ export class OrdersService {
       throw new NotFoundException('Utilisateur introuvable');
     }
 
-    // Création adresse
     const address = await this.prisma.address.create({
       data: {
-        userId: userId,
+        userId,
         fullName: dto.address.fullName,
         phone: dto.address.phone,
         addressLine: dto.address.addressLine,
@@ -350,83 +306,140 @@ export class OrdersService {
       },
     });
 
-    console.log('📍 Adresse créée:', address.id);
-
-    // Création commande
     const order = await this.prisma.order.create({
       data: {
-        userId: userId,
+        userId,
         addressId: address.id,
         status: OrderStatus.PENDING,
-        totalAmount,
+
+        subtotal: orderData.subtotal,
+        deliveryFee: orderData.deliveryFee,
+        totalAmount: orderData.totalAmount,
+        deliveryType: orderData.deliveryType,
+        deliveryCity: dto.address.city,
+        vendorCity: orderData.vendorCity,
+
         items: {
-          create: itemsData.map(item => ({
-            variantId: item.variantId,
-            name: item.name,
-            unitPrice: item.unitPrice,
-            quantity: item.quantity,
-          })),
+          create: orderData.itemsData,
         },
       },
-      include: { items: true, address: true },
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+        address: true,
+      },
     });
 
-    console.log('✅ Commande créée:', order.id);
+    await this.handleInvoiceAndEmail(order, user.email);
 
-    // Création facture
+    try {
+      await this.notificationService.notifyNewOrder(order);
+    } catch (error) {
+      console.error('Notification error:', error);
+    }
+
+    return order;
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                          FACTURE + EMAIL                                   */
+  /* -------------------------------------------------------------------------- */
+
+  private async handleInvoiceAndEmail(order: any, email?: string) {
     const invoice = await this.prisma.invoice.create({
       data: {
         orderId: order.id,
         reference: `INV-${Date.now()}`,
         type: 'DIGITAL',
-        total: totalAmount,
+        total: order.totalAmount,
       },
     });
 
-    console.log('📄 Facture créée:', invoice.reference);
-
-    // ✅ Envoi de la facture par email
     try {
-      if (!user.email) {
-        throw new BadRequestException('Email utilisateur manquant');
+      if (!email) {
+        throw new BadRequestException('Email manquant');
       }
 
       const invoiceData = {
         invoiceRef: invoice.reference,
         orderDate: order.createdAt,
         customer: {
-          name: user.username,
-          email: user.email,
-          phone: user.phone || 'N/A',
+          name: order.guestName || 'Client',
+          email,
+          phone: order.guestPhone || 'N/A',
         },
-        items: order.items.map((i, index) => ({
+        items: order.items.map((i) => ({
           name: i.name,
           quantity: i.quantity,
           unitPrice: i.unitPrice,
           total: i.unitPrice * i.quantity,
-          promotionApplied: itemsData[index]?.promotionApplied || false,
-          originalUnitPrice: itemsData[index]?.originalUnitPrice || null,
+          promotionApplied: !!i.originalUnitPrice,
+          originalUnitPrice: i.originalUnitPrice,
         })),
-        subtotal: totalAmount,
-        total: totalAmount, // ✅ Pas de TVA
+        subtotal: order.subtotal,
+        deliveryFee: order.deliveryFee,
+        totalAmount: order.totalAmount,
       };
 
-      console.log('📧 Génération et envoi de la facture...');
-      const pdf = await this.invoiceService.generateInvoicePdf(invoiceData);
-
-      await this.emailService.sendInvoiceEmail(
-        user.email,
-        invoice.reference,
-        pdf
+      const pdf = await this.invoiceService.generateInvoicePdf(
+        invoiceData,
       );
 
-      console.log('✅ Email de facture envoyé avec succès');
-
+      await this.emailService.sendInvoiceEmail(
+        email,
+        invoice.reference,
+        pdf,
+      );
     } catch (error) {
-      console.error('❌ Erreur lors de l\'envoi de la facture:', error);
-      console.error('⚠️ La commande a été créée mais l\'email n\'a pas pu être envoyé');
+      console.error('Erreur envoi facture:', error);
+    }
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                          CANCEL AVEC RESTOCK                              */
+  /* -------------------------------------------------------------------------- */
+
+  async cancelOrder(orderId: number, userId: number) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: { items: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Commande introuvable');
     }
 
-    return order;
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException(
+        'Seules les commandes en attente peuvent être annulées',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      for (const item of order.items) {
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: {
+            stock: { increment: item.quantity },
+          },
+        });
+      }
+
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.CANCELLED,
+        },
+      });
+
+      return updatedOrder;
+    });
   }
 }
