@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationType } from '@prisma/client';
 
+
 @Injectable()
 export class NotificationService {
   constructor(private prisma: PrismaService) {}
@@ -122,4 +123,22 @@ export class NotificationService {
       },
     });
   }
+
+
+  async notifyCartReminder(cart: any) {
+  try {
+    if (!cart.userId) return;
+
+    await this.prisma.notification.create({
+      data: {
+        userId: cart.userId,
+        type: 'CART_REMINDER',
+        title: 'Panier en attente 🛒',
+        message: 'Vous avez des articles dans votre panier. Finalisez votre commande !',
+      },
+    });
+  } catch (error) {
+    console.error('❌ notifyCartReminder error:', error);
+  }
+}
 }

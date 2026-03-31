@@ -54,27 +54,6 @@ export class OrdersService {
     return order;
   }
 
-  async cancel(orderId: number, userId: number) {
-    const order = await this.prisma.order.findFirst({
-      where: { id: orderId, userId },
-    });
-
-    if (!order) {
-      throw new NotFoundException('Commande introuvable');
-    }
-
-    if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException(
-        'Cette commande ne peut plus être annulée',
-      );
-    }
-
-    return this.prisma.order.update({
-      where: { id: orderId },
-      data: { status: OrderStatus.CANCELLED },
-    });
-  }
-
   async getOrderStatus(orderId: number, userId: number) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
@@ -402,44 +381,201 @@ export class OrdersService {
     }
   }
 
+
   /* -------------------------------------------------------------------------- */
-  /*                          CANCEL AVEC RESTOCK                              */
-  /* -------------------------------------------------------------------------- */
+/*                    UPDATE STATUS CENTRALISÉ (CORE)                         */
+/* -------------------------------------------------------------------------- */
 
-  async cancelOrder(orderId: number, userId: number) {
-    const order = await this.prisma.order.findFirst({
-      where: { id: orderId, userId },
-      include: { items: true },
-    });
+async updateOrderStatus(
+  orderId: number,
+  newStatus: OrderStatus,
+  options?: {
+    userId?: number;
+    vendorId?: number;
+    isAdmin?: boolean;
+  },
+) {
+  const { userId, vendorId, isAdmin } = options || {};
 
-    if (!order) {
-      throw new NotFoundException('Commande introuvable');
-    }
+  // 1️⃣ Récupération + sécurisation (CLIENT + VENDOR dans UNE SEULE requête)
+  const order = await this.prisma.order.findFirst({
+    where: {
+      id: orderId,
+      ...(userId && !isAdmin ? { userId } : {}),
+      ...(vendorId && !isAdmin
+        ? {
+            items: {
+              some: {
+                variant: {
+                  product: {
+                    vendorId,
+                  },
+                },
+              },
+            },
+          }
+        : {}),
+    },
+    include: {
+      items: {
+        select: {
+          variantId: true,
+          quantity: true,
+        },
+      },
+    },
+  });
 
-    if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException(
-        'Seules les commandes en attente peuvent être annulées',
-      );
-    }
+  if (!order) {
+    throw new NotFoundException('Commande introuvable');
+  }
 
-    return this.prisma.$transaction(async (tx) => {
-      for (const item of order.items) {
-        await tx.productVariant.update({
-          where: { id: item.variantId },
-          data: {
-            stock: { increment: item.quantity },
-          },
-        });
-      }
+  // 2️⃣ Protection anti double traitement
+  if (order.status === newStatus) {
+    throw new BadRequestException(
+      `La commande est déjà ${newStatus}`,
+    );
+  }
 
-      const updatedOrder = await tx.order.update({
-        where: { id: orderId },
+  // 3️⃣ Validation du flux métier
+  this.validateStatusTransition(
+    order.status,
+    newStatus,
+    isAdmin ?? false,
+  );
+
+  // 4️⃣ CAS ANNULATION → RESTOCK
+  if (newStatus === OrderStatus.CANCELLED) {
+    return this.cancelOrderWithRestock(order);
+  }
+
+  // 5️⃣ UPDATE SIMPLE
+  return this.prisma.order.update({
+    where: { id: orderId },
+    data: { status: newStatus },
+    include: {
+      items: true,
+      address: true,
+      shipment: true,
+    },
+  });
+}
+
+
+/* -------------------------------------------------------------------------- */
+/*                         VALIDATION DU FLUX                                 */
+/* -------------------------------------------------------------------------- */
+
+private validateStatusTransition(
+  currentStatus: OrderStatus,
+  newStatus: OrderStatus,
+  isAdmin: boolean,
+) {
+  const transitions: Record<OrderStatus, OrderStatus[]> = {
+    PENDING: [OrderStatus.CANCELLED, OrderStatus.PAID],
+    PAID: [OrderStatus.CANCELLED],
+    CANCELLED: [],
+  };
+
+  const allowed = transitions[currentStatus] || [];
+
+  if (!allowed.includes(newStatus)) {
+    throw new BadRequestException(
+      `Transition interdite: ${currentStatus} → ${newStatus}`,
+    );
+  }
+
+  // 🔐 règle critique
+  if (
+    currentStatus === OrderStatus.PAID &&
+    newStatus === OrderStatus.CANCELLED &&
+    !isAdmin
+  ) {
+    throw new BadRequestException(
+      'Seul un admin peut annuler une commande payée',
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         ANNULATION AVEC RESTOCK                            */
+/* -------------------------------------------------------------------------- */
+
+private async cancelOrderWithRestock(order: any) {
+  if (order.status === OrderStatus.CANCELLED) {
+    throw new BadRequestException('Commande déjà annulée');
+  }
+
+  return this.prisma.$transaction(async (tx) => {
+    for (const item of order.items) {
+      await tx.productVariant.update({
+        where: { id: item.variantId },
         data: {
-          status: OrderStatus.CANCELLED,
+          stock: { increment: item.quantity },
         },
       });
+    }
 
-      return updatedOrder;
+    return tx.order.update({
+      where: { id: order.id },
+      data: { status: OrderStatus.CANCELLED },
+      include: {
+        items: true,
+        address: true,
+        shipment: true,
+      },
     });
+  });
+}
+
+
+/* -------------------------------------------------------------------------- */
+/*                      MÉTHODES SPÉCIFIQUES PAR RÔLE                         */
+/* -------------------------------------------------------------------------- */
+
+// 👤 CLIENT
+async cancelOrderByClient(orderId: number, userId: number) {
+  return this.updateOrderStatus(orderId, OrderStatus.CANCELLED, {
+    userId,
+    isAdmin: false,
+  });
+}
+
+// 🏪 VENDOR
+async updateOrderStatusByVendor(
+  orderId: number,
+  vendorId: number,
+  newStatus: OrderStatus,
+) {
+  if (
+    newStatus !== OrderStatus.CANCELLED &&
+    newStatus !== OrderStatus.PAID
+  ) {
+    throw new BadRequestException(
+      'Un vendeur peut seulement passer à PAID ou CANCELLED',
+    );
   }
+
+  // 🔥 LOG IMPORTANT (paiement cash)
+  if (newStatus === OrderStatus.PAID) {
+    console.log(
+      `💰 Paiement CASH confirmé pour commande ${orderId} par vendor ${vendorId}`,
+    );
+  }
+
+  return this.updateOrderStatus(orderId, newStatus, {
+    vendorId,
+    isAdmin: false,
+  });
+}
+
+// 👑 ADMIN
+async updateOrderStatusByAdmin(
+  orderId: number,
+  newStatus: OrderStatus,
+) {
+  return this.updateOrderStatus(orderId, newStatus, {
+    isAdmin: true,
+  });
+}
 }

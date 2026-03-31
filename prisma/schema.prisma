@@ -126,6 +126,8 @@ model User {
   couponUsages   CouponUsage[]
   returnRequests ReturnRequest[]
   disputes       Dispute[]
+  Ratings        Rating[]
+  Reviews        Review[]
   invoices       Invoice[]   @relation("UserInvoices")
 
   referralsSent     Referral[] @relation("Referrer")
@@ -178,6 +180,8 @@ model VendorProfile {
 
   kycDocs      KycDocument[]
   products     Product[]
+  Ratings        Rating[]
+  Reviews        Review[]
   createdAt    DateTime      @default(now())
 
   @@index([categoryId])
@@ -220,6 +224,8 @@ model Product {
   media    Media[]
   promotions Promotion[]
   slugHistory ProductSlugHistory[]
+  Ratings        Rating[]
+  Reviews        Review[]
 
   @@index([vendorId])
   @@index([categoryId])
@@ -311,6 +317,13 @@ model Cart {
   updatedAt DateTime   @updatedAt
 }
 
+model CartReminder {
+  id        Int      @id @default(autoincrement())
+  cartId    Int
+  sentAt    DateTime @default(now())
+  type      String   
+}
+
 model CartItem {
   id             Int            @id @default(autoincrement())
   cart           Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
@@ -366,6 +379,7 @@ model Order {
   payment        Payment?
   shipment       Shipment?
   invoices       Invoice[]
+  Ratings        Rating[]
 
   createdAt      DateTime    @default(now())
 
@@ -626,4 +640,48 @@ enum NotificationType {
   NEW_VENDOR
 
   DISPUTE_CREATED
+
+  NEW_REVIEW
+  NEW_RATING
+  CART_REMINDER
+}
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+
+  orderId   Int?
+  order     Order?   @relation(fields: [orderId], references: [id])
+
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  vendorId  Int?
+  vendor    VendorProfile? @relation(fields: [vendorId], references: [id])
+
+  value     Int 
+
+  createdAt DateTime @default(now())
+
+}
+
+
+
+model Review {
+  id        Int      @id @default(autoincrement())
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  vendorId  Int?
+  vendor    VendorProfile? @relation(fields: [vendorId], references: [id])
+
+  content   String
+
+  createdAt DateTime @default(now())
 }

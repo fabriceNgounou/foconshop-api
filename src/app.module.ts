@@ -30,9 +30,13 @@ import { AdminInvoicesModule } from './admin/invoices/admin-invoices.module';
 import { SocialProofModule } from './social-proof/social-proof.module';
 import { PromotionModule } from './promotion/promotion.module';
 import { NotificationModule } from './notifications/notification.module';
+import {ReviewsModule} from './review/review.module';
+import {ScheduleModule} from "@nestjs/schedule";
+
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
+     ScheduleModule.forRoot(),
      PrismaModule,
      AuthModule,
      ProductModule,
@@ -61,6 +65,7 @@ import { NotificationModule } from './notifications/notification.module';
     SocialProofModule,
     PromotionModule,
     NotificationModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [AppService,],
