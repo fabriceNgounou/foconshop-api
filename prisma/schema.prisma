@@ -72,8 +72,6 @@ enum CouponType {
   PERCENTAGE
 }
 
-
-
 enum InvoiceType {
   DIGITAL
   PHYSICAL
@@ -103,22 +101,21 @@ enum ResolutionType {
   REJECTED
 }
 
-
 model User {
-  id        Int            @id @default(autoincrement())
-  username  String       
-  email     String         @unique
-  phone     String?        @unique
+  id        Int      @id @default(autoincrement())
+  username  String
+  email     String   @unique
+  phone     String?  @unique
   password  String
-  role      Role           @default(CLIENT)
-  createdAt DateTime       @default(now())
+  role      Role     @default(CLIENT)
+  createdAt DateTime @default(now())
 
-  vendor    VendorProfile[]
-  otpCodes  OtpCode[]
+  vendor   VendorProfile[]
+  otpCodes OtpCode[]
 
-  cart      Cart?
-  orders    Order[]
-  addresses Address[]
+  cart          Cart?
+  orders        Order[]
+  addresses     Address[]
   notifications Notification[]
 
   loyaltyWallet  LoyaltyWallet?
@@ -128,7 +125,7 @@ model User {
   disputes       Dispute[]
   Ratings        Rating[]
   Reviews        Review[]
-  invoices       Invoice[]   @relation("UserInvoices")
+  invoices       Invoice[]       @relation("UserInvoices")
 
   referralsSent     Referral[] @relation("Referrer")
   referralsReceived Referral[] @relation("Referee")
@@ -143,7 +140,7 @@ model PendingRegistration {
   otpCode   String
   otpExpiry DateTime
   createdAt DateTime @default(now())
-  
+
   @@index([email])
 }
 
@@ -154,40 +151,39 @@ model PasswordReset {
   otpExpiry DateTime
   isUsed    Boolean  @default(false)
   createdAt DateTime @default(now())
-  
+
   @@index([email])
   @@index([otpCode])
 }
 
 model VendorProfile {
-  id           Int           @id @default(autoincrement())
-  user         User          @relation(fields: [userId], references: [id])
-  userId       Int           
+  id     Int  @id @default(autoincrement())
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
 
   businessName String
-  slug         String? @unique
+  slug         String?   @unique
   description  String?
-  category     Category?     @relation(fields: [categoryId], references: [id])
+  category     Category? @relation(fields: [categoryId], references: [id])
   categoryId   Int?
 
-  phone        String
-  address      String
-  city         String
-  region       String
+  phone   String
+  address String
+  city    String
+  region  String
 
-  codeUnique   String?       @unique
-  status       VendorStatus  @default(PENDING)
+  codeUnique String?      @unique
+  status     VendorStatus @default(PENDING)
 
-  kycDocs      KycDocument[]
-  products     Product[]
-  Ratings        Rating[]
-  Reviews        Review[]
-  createdAt    DateTime      @default(now())
+  kycDocs   KycDocument[]
+  products  Product[]
+  Ratings   Rating[]
+  Reviews   Review[]
+  createdAt DateTime      @default(now())
 
   @@index([categoryId])
   @@index([userId])
 }
-
 
 model OtpCode {
   id        Int      @id @default(autoincrement())
@@ -214,18 +210,18 @@ model Product {
   vendorId    Int?
   category    Category?      @relation(fields: [categoryId], references: [id])
   categoryId  Int?
-  slug        String?         @unique
+  slug        String?        @unique
   title       String
   description String?
   isActive    Boolean        @default(true)
   createdAt   DateTime       @default(now())
 
-  variants ProductVariant[]
-  media    Media[]
-  promotions Promotion[]
+  variants    ProductVariant[]
+  media       Media[]
+  promotions  Promotion[]
   slugHistory ProductSlugHistory[]
-  Ratings        Rating[]
-  Reviews        Review[]
+  Ratings     Rating[]
+  Reviews     Review[]
 
   @@index([vendorId])
   @@index([categoryId])
@@ -245,28 +241,39 @@ model ProductSlugHistory {
 }
 
 model Category {
-  id        Int             @id @default(autoincrement())
-  name      String          @unique
-  slug      String          @unique
-
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  level     Int      @default(1) // ✅ Niveau de profondeur (1-4)
+  
+  // ✅ Relation hiérarchique
+  parentId  Int?
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Category[] @relation("CategoryHierarchy")
+  
+  // Relations existantes
   products  Product[]
-  vendors   VendorProfile[] 
-
-  createdAt DateTime        @default(now())
+  vendors   VendorProfile[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
+  
+  @@unique([parentId, slug]) // ✅ Slug unique par niveau
+  @@index([parentId])
+  @@index([level])
 }
-
 
 model ProductVariant {
   id        Int     @id @default(autoincrement())
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId Int
 
-  name  String
-  price Float
-  stock Int
-  media    Media[]
-  intraCityDeliveryFee Float @default(500)
-  interCityDeliveryFee Float @default(1500)
+  name                 String
+  price                Float
+  stock                Int
+  media                Media[]
+  intraCityDeliveryFee Float   @default(500)
+  interCityDeliveryFee Float   @default(1500)
 
   createdAt DateTime @default(now())
 
@@ -277,18 +284,18 @@ model ProductVariant {
 }
 
 model Promotion {
-  id        Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   productId Int
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  type      CouponType
-  value     Float
+  type  CouponType
+  value Float
 
-  startAt   DateTime
-  endAt     DateTime
+  startAt DateTime
+  endAt   DateTime
 
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([productId])
   @@index([startAt, endAt])
@@ -318,10 +325,10 @@ model Cart {
 }
 
 model CartReminder {
-  id        Int      @id @default(autoincrement())
-  cartId    Int
-  sentAt    DateTime @default(now())
-  type      String   
+  id     Int      @id @default(autoincrement())
+  cartId Int
+  sentAt DateTime @default(now())
+  type   String
 }
 
 model CartItem {
@@ -339,7 +346,7 @@ model CartItem {
 
 model Address {
   id          Int      @id @default(autoincrement())
-  user        User?     @relation(fields: [userId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
   userId      Int?
   fullName    String
   phone       String
@@ -351,27 +358,27 @@ model Address {
 }
 
 model Order {
-  id             Int         @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  user           User?       @relation(fields: [userId], references: [id])
-  userId         Int?
+  user   User? @relation(fields: [userId], references: [id])
+  userId Int?
 
-  guestName      String?
-  guestEmail     String?
-  guestPhone     String?
+  guestName  String?
+  guestEmail String?
+  guestPhone String?
 
-  address        Address     @relation(fields: [addressId], references: [id])
-  addressId      Int
+  address   Address @relation(fields: [addressId], references: [id])
+  addressId Int
 
-  status         OrderStatus @default(PENDING)
+  status OrderStatus @default(PENDING)
 
-  subtotal       Float?
-  deliveryFee    Float?
-  totalAmount    Float
+  subtotal    Float?
+  deliveryFee Float?
+  totalAmount Float
 
-  deliveryType   DeliveryType @default(INTRA_CITY)
-  deliveryCity   String @default("")
-  vendorCity     String @default("")
+  deliveryType DeliveryType @default(INTRA_CITY)
+  deliveryCity String       @default("")
+  vendorCity   String       @default("")
 
   items          OrderItem[]
   returnRequests ReturnRequest[]
@@ -381,7 +388,7 @@ model Order {
   invoices       Invoice[]
   Ratings        Rating[]
 
-  createdAt      DateTime    @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([status])
@@ -401,10 +408,10 @@ model OrderItem {
   variant   ProductVariant @relation(fields: [variantId], references: [id])
   variantId Int
 
-  name               String
-  unitPrice          Float
-  originalUnitPrice  Float?
-  quantity           Int
+  name              String
+  unitPrice         Float
+  originalUnitPrice Float?
+  quantity          Int
 
   returnItems ReturnItem[]
 
@@ -423,7 +430,7 @@ model Payment {
   status PaymentStatus @default(PENDING)
 
   attempts  PaymentAttempt[]
-  createdAt DateTime   @default(now())
+  createdAt DateTime         @default(now())
 
   @@index([status])
 }
@@ -436,20 +443,20 @@ model PaymentAttempt {
   providerRef String?
   status      PaymentStatus
   response    Json?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime      @default(now())
 }
 
 model Invoice {
-  id        Int        @id @default(autoincrement())
-  reference String     @unique
-  order     Order      @relation(fields: [orderId], references: [id])
+  id        Int    @id @default(autoincrement())
+  reference String @unique
+  order     Order  @relation(fields: [orderId], references: [id])
   orderId   Int
-  user      User?      @relation("UserInvoices", fields: [userId], references: [id])
+  user      User?  @relation("UserInvoices", fields: [userId], references: [id])
   userId    Int?
 
-  total     Float
-  type      InvoiceType
-  status    InvoiceStatus @default(GENERATED)
+  total  Float
+  type   InvoiceType
+  status InvoiceStatus @default(GENERATED)
 
   createdAt DateTime @default(now())
 }
@@ -481,28 +488,28 @@ model TrackingEvent {
 }
 
 model LoyaltyWallet {
-  id        Int  @id @default(autoincrement())
-  user      User @relation(fields: [userId], references: [id])
-  userId    Int  @unique
+  id     Int  @id @default(autoincrement())
+  user   User @relation(fields: [userId], references: [id])
+  userId Int  @unique
 
-  balance   Int @default(0)
-  entries   LoyaltyEntry[]
+  balance Int            @default(0)
+  entries LoyaltyEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model LoyaltyEntry {
-  id       Int            @id @default(autoincrement())
-  wallet   LoyaltyWallet  @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  id       Int           @id @default(autoincrement())
+  wallet   LoyaltyWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
   walletId Int
 
-  user     User           @relation(fields: [userId], references: [id])
-  userId   Int
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
 
-  type     LoyaltyEntryType
-  source   LoyaltySource
-  points   Int
+  type      LoyaltyEntryType
+  source    LoyaltySource
+  points    Int
   reference String?
 
   createdAt DateTime @default(now())
@@ -521,17 +528,17 @@ model Coupon {
   expiresAt DateTime?
   isActive  Boolean   @default(true)
 
-  usages CouponUsage[]
-  createdAt DateTime @default(now())
+  usages    CouponUsage[]
+  createdAt DateTime      @default(now())
 }
 
 model CouponUsage {
-  id       Int   @id @default(autoincrement())
+  id       Int    @id @default(autoincrement())
   coupon   Coupon @relation(fields: [couponId], references: [id])
   couponId Int
 
-  user     User   @relation(fields: [userId], references: [id])
-  userId   Int
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
 
   usedAt DateTime @default(now())
 
@@ -543,11 +550,11 @@ model Referral {
   referrer   User @relation("Referrer", fields: [referrerId], references: [id])
   referrerId Int
 
-  referee    User @relation("Referee", fields: [refereeId], references: [id])
-  refereeId  Int
+  referee   User @relation("Referee", fields: [refereeId], references: [id])
+  refereeId Int
 
-  rewardGiven Boolean @default(false)
-  createdAt  DateTime @default(now())
+  rewardGiven Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   @@unique([referrerId, refereeId])
 }
@@ -594,7 +601,7 @@ model Dispute {
   status  DisputeStatus @default(OPEN)
 
   resolution Resolution?
-  createdAt DateTime @default(now())
+  createdAt  DateTime    @default(now())
 
   @@index([orderId])
   @@index([userId])
@@ -608,22 +615,22 @@ model Resolution {
 
   type      ResolutionType
   note      String?
-  createdAt DateTime @default(now())
+  createdAt DateTime       @default(now())
 
   @@index([disputeId])
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  userId    Int?
-  user      User?    @relation(fields: [userId], references: [id])
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id])
 
-  title     String
-  message   String
+  title   String
+  message String
 
-  type      NotificationType
-  isRead    Boolean  @default(false)
+  type   NotificationType
+  isRead Boolean          @default(false)
 
   createdAt DateTime @default(now())
 }
@@ -647,41 +654,38 @@ enum NotificationType {
 }
 
 model Rating {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
 
-  orderId   Int?
-  order     Order?   @relation(fields: [orderId], references: [id])
+  orderId Int?
+  order   Order? @relation(fields: [orderId], references: [id])
 
   productId Int?
   product   Product? @relation(fields: [productId], references: [id])
 
-  vendorId  Int?
-  vendor    VendorProfile? @relation(fields: [vendorId], references: [id])
+  vendorId Int?
+  vendor   VendorProfile? @relation(fields: [vendorId], references: [id])
 
-  value     Int 
+  value Int
 
   createdAt DateTime @default(now())
-
 }
 
-
-
 model Review {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
 
   productId Int?
   product   Product? @relation(fields: [productId], references: [id])
 
-  vendorId  Int?
-  vendor    VendorProfile? @relation(fields: [vendorId], references: [id])
+  vendorId Int?
+  vendor   VendorProfile? @relation(fields: [vendorId], references: [id])
 
-  content   String
+  content String
 
   createdAt DateTime @default(now())
 }
