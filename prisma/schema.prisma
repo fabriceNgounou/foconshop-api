@@ -540,9 +540,16 @@ model CouponUsage {
   user   User @relation(fields: [userId], references: [id])
   userId Int
 
-  usedAt DateTime @default(now())
+  // ✅ AJOUTS pour analytics admin
+  orderId        Int?   // Lien vers la commande où le coupon a été utilisé
+  discountAmount Float? // Montant de réduction effectif en XAF
+
+  usedAt    DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([couponId, userId])
+  @@index([orderId]) 
+  @@index([usedAt])  
 }
 
 model Referral {

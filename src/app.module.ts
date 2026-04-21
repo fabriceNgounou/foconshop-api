@@ -32,6 +32,11 @@ import { PromotionModule } from './promotion/promotion.module';
 import { NotificationModule } from './notifications/notification.module';
 import {ReviewsModule} from './review/review.module';
 import {ScheduleModule} from "@nestjs/schedule";
+import { AdminCouponsModule } from './admin/coupons/admin-coupons.module';
+import { AdminLoyaltyModule } from './admin/loyalty/admin-loyalty.module';
+import { AdminReferralsModule } from './admin/referrals/admin-referrals.module';
+import { AdminNotificationsModule } from './admin/notifications/admin-notifications.module';
+
 
 
 @Module({
@@ -66,6 +71,10 @@ import {ScheduleModule} from "@nestjs/schedule";
     PromotionModule,
     NotificationModule,
     ReviewsModule,
+    AdminCouponsModule,
+    AdminLoyaltyModule,
+    AdminReferralsModule,
+    AdminNotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService,],
