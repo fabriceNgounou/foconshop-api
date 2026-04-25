@@ -11,7 +11,6 @@ import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 export class ProductVariantService {
   constructor(private prisma: PrismaService) {}
 
-  // 🔐 Vendor – create variant for his product
   async create(
     productId: number,
     vendorId: number,
@@ -35,11 +34,12 @@ export class ProductVariantService {
         name: dto.name,
         price: dto.price,
         stock: dto.stock,
+        intraCityDeliveryFee: dto.intraCityDeliveryFee ?? 500,   // ✅ AJOUT
+        interCityDeliveryFee: dto.interCityDeliveryFee ?? 1500,  // ✅ AJOUT
       },
     });
   }
 
-  // 🔓 Public – list variants of a product
   async findByProduct(productId: number) {
     return this.prisma.productVariant.findMany({
       where: { productId },
@@ -47,7 +47,6 @@ export class ProductVariantService {
     });
   }
 
-  // 🔐 Vendor – update variant
   async update(
     variantId: number,
     vendorId: number,
@@ -68,11 +67,10 @@ export class ProductVariantService {
 
     return this.prisma.productVariant.update({
       where: { id: variantId },
-      data: dto,
+      data: dto, // ✅ déjà compatible avec les nouveaux champs
     });
   }
 
-  // 🔐 Vendor – delete variant
   async remove(variantId: number, vendorId: number) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: variantId },

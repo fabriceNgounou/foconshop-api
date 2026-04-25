@@ -1,5 +1,5 @@
 // src/admin/orders/admin-orders.controller.ts
-import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, UseGuards, Delete } from '@nestjs/common';
 import { AdminOrdersService } from './admin-order.service';
 import { Roles } from '../../auth/roles.decorator';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -24,7 +24,7 @@ export class AdminOrdersController {
 
   @Patch(':id/status')
   updateStatus(@Param('id') id: number, @Body('status') status: OrderStatus) {
-    return this.adminOrdersService.updateOrderStatus(id, status);
+    return this.adminOrdersService.updateOrderStatus(+id, status);
   }
 
   @Get('payment/:reference')
@@ -35,5 +35,10 @@ export class AdminOrdersController {
   @Get(':orderId/payments')
   getPaymentsByOrder(@Param('orderId') orderId: number) {
     return this.adminOrdersService.findPaymentsByOrder(+orderId);
+  }
+
+  @Delete(':id')
+  deleteOrder(@Param('id') id: number) {
+    return this.adminOrdersService.deleteOrderByAdmin(+id);
   }
 }

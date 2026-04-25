@@ -1,9 +1,33 @@
 // src/vendor/dto/create-vendor.dto.ts
-import { IsOptional, IsString } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  MinLength,
+} from 'class-validator';
 
 export class CreateVendorDto {
-  @IsOptional()
   @IsString()
-  // Par exemple nom de la boutique
-  storeName?: string;
+  @MinLength(3)
+  businessName: string;
+
+  
+  @IsString()
+  description?: string;
+  
+  @IsInt()
+  categoryId: number;
+
+  @IsString()
+  phone: string;
+
+  @IsString()
+  address: string;
+
+  
+  @IsString()
+  city: string;
+  
+  
+  @IsString()
+  region: string;
 }

@@ -19,7 +19,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: pgadmin@local
       PGADMIN_DEFAULT_PASSWORD: pgadmin
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - db
 

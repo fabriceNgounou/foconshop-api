@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ShipmentsService } from './shipments.service';
 
@@ -16,6 +16,17 @@ export class ShipmentsController {
     return this.shipmentsService.getShipmentByOrder(
       Number(orderId),
       req.user.sub,
+    );
+  }
+
+  /**
+   * Patch /shipments/:orderId
+   * Marquer une commande comme expédiée et notifier le client
+   */
+  @Patch(':orderId')
+  shipOrder(@Param('orderId') orderId: string) {
+    return this.shipmentsService.shipOrder(
+      Number(orderId)
     );
   }
 }

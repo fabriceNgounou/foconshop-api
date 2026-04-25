@@ -13,4 +13,14 @@ export class CreateProductVariantDto {
   @IsInt()
   @Min(0)
   stock: number;
+
+  @IsInt()
+  @Min(0)
+  intraCityDeliveryFee: number;
+
+  @IsInt()
+  @Min(0)
+  interCityDeliveryFee: number;
+
+
 }

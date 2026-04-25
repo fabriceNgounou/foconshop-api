@@ -2,10 +2,11 @@
 import { Module } from '@nestjs/common';
 import { DisputesController } from './disputes.controller';
 import { DisputesService } from './disputes.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { NotificationModule } from 'src/notifications/notification.module';
 
 @Module({
   controllers: [DisputesController],
-  providers: [DisputesService, PrismaService],
+  providers: [DisputesService,],
+  imports: [NotificationModule],
 })
 export class DisputeModule {}

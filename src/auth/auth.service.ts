@@ -10,7 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 import { LoyaltyService } from '../loyalty/loyalty.service';
-import { LoyaltySource } from '@prisma/client';
+import { LoyaltySource, VendorStatus } from '@prisma/client';
 import { EmailService } from '../email/email.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -185,43 +185,53 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-      include: {
-        vendor: true,
-      },
-    });
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    const valid = await this.comparePassword(dto.password, user.password);
-    if (!valid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    const vendorId =
-      user.vendor && user.vendor.status === 'APPROVED'
-        ? user.vendor.id
-        : null;
-    const payload = {
-      sub: user.id,
+  const user = await this.prisma.user.findUnique({
+    where: { email: dto.email },
+    include: {
+      vendor: true,
+    },
+  });
+
+  if (!user) {
+    throw new UnauthorizedException('Invalid credentials');
+  }
+
+  const valid = await this.comparePassword(dto.password, user.password);
+  if (!valid) {
+    throw new UnauthorizedException('Invalid credentials');
+  }
+
+  // ✅ ASSERTION DE TYPE : Forcer user.vendor en tant que tableau
+  const vendors = (user.vendor || []) as Array<{
+    id: number;
+    status: VendorStatus;
+    businessName: string;
+  }>;
+
+  const approvedVendor = vendors.find((v) => v.status === 'APPROVED');
+  const vendorId = approvedVendor?.id ?? null;
+
+  const payload = {
+    sub: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    vendorId,
+  };
+
+  const accessToken = this.jwtService.sign(payload);
+
+  return {
+    access_token: accessToken,
+    user: {
+      id: user.id,
       username: user.username,
       email: user.email,
       role: user.role,
       vendorId,
-    };
-    const accessToken = this.jwtService.sign(payload);
-    return {
-      access_token: accessToken,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        vendorId,
-      },
-    };
-  }
-
+    },
+  };
+}
   /**
    * ÉTAPE 1 : Demander la réinitialisation du mot de passe
    */

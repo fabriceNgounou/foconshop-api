@@ -1,4 +1,10 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -7,8 +13,20 @@ import { UpdateProductDto } from './dto/update-product.dto';
 export class ProductService {
   constructor(private prisma: PrismaService) {}
 
+  private slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  }
+
+  private buildSlug(title: string, productId: number): string {
+    return `${this.slugify(title)}-${productId}`;
+  }
+
   async create(vendorId: number, dto: CreateProductDto) {
-    // 1️⃣ vérifier que la catégorie existe
     const category = await this.prisma.category.findUnique({
       where: { id: dto.categoryId },
     });
@@ -17,8 +35,7 @@ export class ProductService {
       throw new NotFoundException('Category not found');
     }
 
-    // 2️⃣ créer le produit
-    return this.prisma.product.create({
+    const product = await this.prisma.product.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -26,36 +43,84 @@ export class ProductService {
         categoryId: dto.categoryId,
       },
     });
+
+    const slug = this.buildSlug(product.title, product.id);
+
+    await this.prisma.product.update({
+      where: { id: product.id },
+      data: { slug },
+    });
+
+    return {
+      ...product,
+      slug,
+    };
   }
 
   async findMyProducts(vendorProfileId: number) {
-  if (!vendorProfileId) throw new BadRequestException('Vendor ID is required');
-  
-  return this.prisma.product.findMany({
-    where: { vendorId: vendorProfileId },
-    orderBy: { createdAt: 'desc' },
-  });
-}
+    if (!vendorProfileId) {
+      throw new BadRequestException('Vendor ID is required');
+    }
 
-
-
-async findMyProductsByUser(userId: number) {
-  const vendor = await this.prisma.vendorProfile.findUnique({
-    where: { userId },
-  });
-
-  if (!vendor) {
-    throw new ForbiddenException('User is not a vendor');
+    return this.prisma.product.findMany({
+      where: { vendorId: vendorProfileId },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
-  return this.prisma.product.findMany({
-    where: { vendorId: vendor.id },
-    orderBy: { createdAt: 'desc' },
-  });
-}
+  async findMyProductsByUser(userId: number) {
+    const vendor = await this.prisma.vendorProfile.findFirst({
+      where: { userId, status: 'APPROVED' },
+    });
 
+    if (!vendor) {
+      throw new ForbiddenException(
+        'User is not a vendor or has no approved shop',
+      );
+    }
 
-  async update(productId: number, vendorProfileId: number, dto: UpdateProductDto) {
+    return this.prisma.product.findMany({
+      where: { vendorId: vendor.id },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findOnePublic(productId: number) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            status: true,
+            codeUnique: true,
+            businessName: true,
+          },
+        },
+        variants: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            intraCityDeliveryFee: true,     // ✅ AJOUT
+            interCityDeliveryFee: true,     // ✅ AJOUT
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return product;
+  }
+
+  async update(
+    productId: number,
+    vendorProfileId: number,
+    dto: UpdateProductDto,
+  ) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
@@ -68,15 +133,43 @@ async findMyProductsByUser(userId: number) {
       throw new ForbiddenException('You cannot update this product');
     }
 
+    const titleChanged =
+      dto.title !== undefined && dto.title !== product.title;
+
+    let newSlug: string | undefined;
+
+    if (titleChanged || !product.slug) {
+      newSlug = this.buildSlug(dto.title ?? product.title, product.id);
+
+      if (product.slug) {
+        await this.prisma.productSlugHistory.create({
+          data: {
+            productId: product.id,
+            slug: product.slug,
+          },
+        });
+      }
+    }
+
     return this.prisma.product.update({
       where: { id: productId },
-      data: dto,
+      data: {
+        ...dto,
+        ...(newSlug ? { slug: newSlug } : {}),
+      },
     });
   }
 
   async remove(productId: number, vendorProfileId: number) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
+      include: {
+        variants: {
+          include: {
+            OrderItem: true,
+          },
+        },
+      },
     });
 
     if (!product) {
@@ -87,12 +180,21 @@ async findMyProductsByUser(userId: number) {
       throw new ForbiddenException('You cannot delete this product');
     }
 
+    const hasOrders = product.variants.some(
+      (variant) => variant.OrderItem.length > 0,
+    );
+
+    if (hasOrders) {
+      throw new BadRequestException(
+        'Impossible de supprimer un produit déjà commandé',
+      );
+    }
+
     return this.prisma.product.delete({
       where: { id: productId },
     });
   }
 
-  /* 🔓 PUBLIC – LIST PRODUCTS */
   async findAllPublic() {
     return this.prisma.product.findMany({
       orderBy: { createdAt: 'desc' },
@@ -108,34 +210,72 @@ async findMyProductsByUser(userId: number) {
           select: {
             id: true,
             status: true,
+            businessName: true,
           },
         },
       },
     });
   }
 
-// src/product/product.service.ts
-
-async findOnePublic(productId: number) {
-  const product = await this.prisma.product.findUnique({
-    where: { id: productId },
-    include: {
-      vendor: {
-        select: {
-          id: true,
-          status: true,
-          codeUnique: true,
+  async findOnePublicBySlug(slug: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { slug },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            status: true,
+            codeUnique: true,
+            businessName: true,
+          },
+        },
+        category: {
+          select: { id: true, name: true, slug: true },
+        },
+        variants: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            intraCityDeliveryFee: true,     // ✅ AJOUT
+            interCityDeliveryFee: true,     // ✅ AJOUT
+          },
         },
       },
-    },
-  });
+    });
 
-  if (!product) {
-    throw new NotFoundException('Product not found');
+    if (!product) {
+      const history = await this.prisma.productSlugHistory.findUnique({
+        where: { slug },
+        include: { product: true },
+      });
+
+      if (!history) throw new NotFoundException('Product not found');
+
+      return { redirectTo: history.product.slug };
+    }
+
+    return { product };
   }
 
-  return product;
-}
+  async toggleActiveStatus(
+    productId: number,
+    vendorProfileId: number,
+    status: boolean,
+  ) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
 
+    if (!product) throw new NotFoundException('Product not found');
 
+    if (product.vendorId !== vendorProfileId) {
+      throw new ForbiddenException('You cannot change this product');
+    }
+
+    return this.prisma.product.update({
+      where: { id: productId },
+      data: { isActive: status },
+    });
+  }
 }

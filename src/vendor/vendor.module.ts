@@ -2,11 +2,14 @@
 import { Module } from '@nestjs/common';
 import { VendorService } from './vendor.service';
 import { VendorController } from './vendor.controller';
-import { PrismaService } from '../prisma/prisma.service';
+import { VendorPublicController } from './vendor-public.controller';
+import {NotificationModule} from "../notifications/notification.module";
+
 
 @Module({
-  controllers: [VendorController],
-  providers: [VendorService, PrismaService],
+  controllers: [VendorController,VendorPublicController],
+  providers: [VendorService,],
   exports: [VendorService],
+  imports: [NotificationModule],
 })
 export class VendorModule {}

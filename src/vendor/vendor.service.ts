@@ -1,36 +1,203 @@
 // src/vendor/vendor.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateKycDto } from './dto/create-kyc.dto';
 import { VendorStatus, Role } from '@prisma/client';
+import { CreateVendorDto } from './dto/create-vendor.dto';
+import { NotificationType } from '@prisma/client';
+import { NotificationService } from '../notifications/notification.service';
+import slugify from 'slugify';
+import { join } from 'path';
+import * as fs from 'fs';
 
 @Injectable()
 export class VendorService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService,
+              private notificationService: NotificationService) {}
 
-  async createVendorProfile(userId: number, data?: { storeName?: string }) {
-    // Vérifier si existe déjà
-    const existing = await this.prisma.vendorProfile.findUnique({ where: { userId } });
-    if (existing) return existing;
+  async createVendor(userId: number, dto: CreateVendorDto) {
+    const shopCount = await this.prisma.vendorProfile.count({ where: { userId } });
+    if (shopCount >= 5) throw new BadRequestException('Maximum 5 shops allowed');
+
+    const baseSlug = slugify(dto.businessName, { lower: true, strict: true });
+    const slug = `${baseSlug}-${Date.now()}`;
 
     const vendor = await this.prisma.vendorProfile.create({
       data: {
+        businessName: dto.businessName,
+        description: dto.description,
+        categoryId: dto.categoryId,
+        phone: dto.phone,
+        address: dto.address,
+        city: dto.city,
+        region: dto.region,
+        slug,
         userId,
-        codeUnique: null,
-        status: 'PENDING',
-        createdAt: new Date(),
-        // products empty by default
       },
     });
+
+    // ⚡ Notification aux admins
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { id: true },
+    });
+
+    await Promise.all(
+      admins.map((admin) =>
+        this.notificationService.createNotification({
+          userId: admin.id,
+          title: 'Nouveau vendeur',
+          message: `Un vendeur (${vendor.businessName}) demande validation`,
+          type: NotificationType.NEW_VENDOR,
+        }),
+      ),
+    );
+
     return vendor;
   }
 
   async getByUserId(userId: number) {
-    return this.prisma.vendorProfile.findUnique({
+    const vendors = await this.prisma.vendorProfile.findMany({
       where: { userId },
-      include: { kycDocs: true, products: true, user: { select: { email: true, phone: true } } },
+      include: { 
+        kycDocs: true, 
+        products: true, 
+        user: { select: { email: true, phone: true } } 
+      },
+      orderBy: { createdAt: 'desc' }
     });
+
+    return vendors;
   }
+
+
+  // ✅ NOUVELLE : Récupérer toutes mes boutiques avec détails
+  async getMyShops(userId: number) {
+    const vendors = await this.prisma.vendorProfile.findMany({
+      where: { userId },
+      include: { 
+        kycDocs: true, 
+        products: {
+          select: {
+            id: true,
+            title: true,
+            isActive: true,
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          }
+        },
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return {
+      totalShops: vendors.length,
+      remainingSlots: 5 - vendors.length,
+      shops: vendors.map(vendor => ({
+        id: vendor.id,
+        businessName: vendor.businessName,
+        slug: vendor.slug,
+        description: vendor.description,
+        status: vendor.status,
+        codeUnique: vendor.codeUnique,
+        category: vendor.category,
+        phone: vendor.phone,
+        address: vendor.address,
+        city: vendor.city,
+        region: vendor.region,
+        createdAt: vendor.createdAt,
+        productsCount: vendor.products.length,
+        kycDocsCount: vendor.kycDocs.length,
+        kycDocs: vendor.kycDocs,
+      })),
+    };
+  }
+
+  // ✅ NOUVELLE : Version publique des boutiques
+  async getPublicShops(userId: number) {
+    const vendors = await this.prisma.vendorProfile.findMany({
+      where: { 
+        userId,
+        status: 'APPROVED',
+      },
+      include: { 
+        products: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          }
+        },
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return {
+      totalShops: vendors.length,
+      shops: vendors.map(vendor => ({
+        id: vendor.id,
+        businessName: vendor.businessName,
+        slug: vendor.slug,
+        description: vendor.description,
+        codeUnique: vendor.codeUnique,
+        category: vendor.category,
+        city: vendor.city,
+        region: vendor.region,
+        createdAt: vendor.createdAt,
+        productsCount: vendor.products.length,
+      })),
+    };
+  }
+
+  // ✅ NOUVELLE : Stats des boutiques
+  async getMyShopsCount(userId: number) {
+    const count = await this.prisma.vendorProfile.count({
+      where: { userId }
+    });
+
+    const approvedCount = await this.prisma.vendorProfile.count({
+      where: { 
+        userId,
+        status: 'APPROVED',
+      }
+    });
+
+    const pendingCount = await this.prisma.vendorProfile.count({
+      where: { 
+        userId,
+        status: 'PENDING',
+      }
+    });
+
+    const rejectedCount = await this.prisma.vendorProfile.count({
+      where: { 
+        userId,
+        status: 'REJECTED',
+      }
+    });
+
+    return {
+      total: count,
+      approved: approvedCount,
+      pending: pendingCount,
+      rejected: rejectedCount,
+      remainingSlots: 5 - count,
+    };
+  }
+
 
   async getById(id: number) {
     const vendor = await this.prisma.vendorProfile.findUnique({
@@ -41,29 +208,139 @@ export class VendorService {
     return vendor;
   }
 
+  // ✅ MÉTHODE EXISTANTE (garde compatibilité avec l'ancien système)
   async addKycDocument(vendorId: number, dto: CreateKycDto) {
-  // Vérifier que le profil vendeur existe
-  const vendor = await this.prisma.vendorProfile.findUnique({
-    where: { id: vendorId },
-  });
+    const vendor = await this.prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+    });
 
-  if (!vendor) {
-    throw new NotFoundException('Vendor profile not found');
+    if (!vendor) {
+      throw new NotFoundException('Vendor profile not found');
+    }
+
+    return this.prisma.kycDocument.create({
+      data: {
+        vendorProfileId: vendorId,
+        type: dto.type,
+        url: dto.url,
+        status: 'PENDING',
+      },
+    });
   }
 
-  return this.prisma.kycDocument.create({
-    data: {
-      vendorProfileId: vendorId,
-      type: dto.type,
-      url: dto.url,
-      status: 'PENDING',
-    },
-  });
-}
+  // Upload de document KYC avec fichier physique
+  async addKycDocumentWithFile(
+    vendorId: number, 
+    url: string, 
+    type: string, 
+    fileSize: number
+  ) {
+    const vendor = await this.prisma.vendorProfile.findUnique({
+      where: { id: vendorId },
+    });
 
+    if (!vendor) {
+      throw new NotFoundException('Vendor profile not found');
+    }
+
+    // ✅ Vérifier le nombre de documents existants pour ce type
+    const docCount = await this.prisma.kycDocument.count({
+      where: { 
+        vendorProfileId: vendorId,
+        type,
+      },
+    });
+
+    if (docCount >= 1) {
+      throw new BadRequestException(
+        `Un document de type ${type} existe déjà. Veuillez le supprimer avant d'en ajouter un nouveau.`
+      );
+    }
+
+    // ✅ Vérifier la taille du fichier (max 5 Mo)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    if (fileSize > MAX_FILE_SIZE) {
+      throw new BadRequestException('Le document ne peut pas dépasser 5 Mo');
+    }
+
+    return this.prisma.kycDocument.create({
+      data: {
+        vendorProfileId: vendorId,
+        type,
+        url,
+        status: 'PENDING',
+      },
+    });
+  }
+
+  // Mettre à jour un document KYC
+  async updateKycDocument(
+    kycDocId: number,
+    vendorId: number,
+    newUrl: string,
+    fileSize: number
+  ) {
+    const kycDoc = await this.prisma.kycDocument.findUnique({
+      where: { id: kycDocId },
+    });
+
+    if (!kycDoc) {
+      throw new NotFoundException('Document KYC introuvable');
+    }
+
+    if (kycDoc.vendorProfileId !== vendorId) {
+      throw new ForbiddenException('Accès refusé à ce document');
+    }
+
+    // ✅ Vérifier la taille du fichier
+    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    if (fileSize > MAX_FILE_SIZE) {
+      throw new BadRequestException('Le document ne peut pas dépasser 5 Mo');
+    }
+
+    // ✅ Supprimer l'ancien fichier
+    const oldPath = join(process.cwd(), kycDoc.url);
+    if (fs.existsSync(oldPath)) {
+      fs.unlinkSync(oldPath);
+    }
+
+    return this.prisma.kycDocument.update({
+      where: { id: kycDocId },
+      data: {
+        url: newUrl,
+        status: 'PENDING',
+      },
+    });
+  }
+
+  //  Supprimer un document KYC
+  async deleteKycDocument(kycDocId: number, vendorId: number) {
+    const kycDoc = await this.prisma.kycDocument.findUnique({
+      where: { id: kycDocId },
+    });
+
+    if (!kycDoc) {
+      throw new NotFoundException('Document KYC introuvable');
+    }
+
+    if (kycDoc.vendorProfileId !== vendorId) {
+      throw new ForbiddenException('Accès refusé à ce document');
+    }
+
+    // ✅ Supprimer le fichier physique
+    const filePath = join(process.cwd(), kycDoc.url);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    await this.prisma.kycDocument.delete({
+      where: { id: kycDocId },
+    });
+
+    return { message: 'Document KYC supprimé avec succès' };
+  }
 
   private generateCodeUnique(vendorId: number) {
-    // Ex: VEND-2025-000123
     const year = new Date().getFullYear();
     const padded = String(vendorId).padStart(6, '0');
     return `VEND-${year}-${padded}`;
@@ -92,11 +369,6 @@ export class VendorService {
         ? this.generateCodeUnique(vendor.id)
         : null;
 
-    /**
-     * 🔒 Transaction atomique :
-     * - validation vendeur
-     * - changement de rôle utilisateur
-     */
     return this.prisma.$transaction(async (tx) => {
       const updatedVendor = await tx.vendorProfile.update({
         where: { id: vendorId },
@@ -120,25 +392,25 @@ export class VendorService {
   }
 
   async getPendingVendors() {
-  return this.prisma.vendorProfile.findMany({
-    where: { status: 'PENDING' },
-    include: {
-      user: {
-        select: {
-          email: true,
-          phone: true,
+    return this.prisma.vendorProfile.findMany({
+      where: { status: 'PENDING' },
+      include: {
+        user: {
+          select: {
+            email: true,
+            phone: true,
+          },
         },
+        kycDocs: true,
       },
-      kycDocs: true,
-    },
-    orderBy: {
-      createdAt: 'asc',
-    },
-  });
-}
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+  }
 
-async findOrdersForVendor(userId: number) {
-    const vendor = await this.prisma.vendorProfile.findUnique({
+  async findOrdersForVendor(userId: number) {
+    const vendor = await this.prisma.vendorProfile.findFirst({
       where: { userId },
     });
     if (!vendor) return [];
@@ -160,7 +432,49 @@ async findOrdersForVendor(userId: number) {
     });
   }
 
+  async getMyVendorProfile(userId: number) {
+    const vendor = await this.prisma.vendorProfile.findFirst({
+      where: { userId },
+      include: {
+        kycDocs: true,
+        products: true,
+      },
+    });
 
+    if (!vendor) {
+      throw new NotFoundException('Vendor profile not found');
+    }
 
-  
+    return vendor;
+  }
+
+  async getVendorProfile(userId: number) {
+    const vendor = await this.prisma.vendorProfile.findFirst({
+      where: { userId },
+      include: {
+        products: true,
+      },
+    });
+
+    if (!vendor) {
+      throw new NotFoundException('Vendor profile not found');
+    }
+
+    return vendor;
+  }
+
+  async getMyKycDocuments(userId: number) {
+    const vendor = await this.prisma.vendorProfile.findFirst({
+      where: { userId },
+      include: {
+        kycDocs: true,
+      },
+    });
+
+    if (!vendor) {
+      throw new NotFoundException('Vendor profile not found');
+    }
+
+    return vendor.kycDocs;
+  }
 }

@@ -47,4 +47,11 @@ export class CartController {
   removeItem(@Req() req: any, @Param('id') id: string) {
     return this.cartService.removeItem(req.user.sub, Number(id));
   }
+
+
+@Get('recommendations')
+@UseGuards(JwtAuthGuard)
+getCartRecommendations(@Req() req: any) {
+  return this.cartService.getCartRecommendations(req.user.sub);
+}
 }

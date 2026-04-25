@@ -7,7 +7,9 @@ import { OrderStatus, PaymentStatus } from '@prisma/client';
 export class AdminOrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 1️⃣ Lister toutes les commandes (admin)
+  /* -------------------------------------------------------------------------- */
+  /*                     1️⃣ Lister toutes les commandes                        */
+  /* -------------------------------------------------------------------------- */
   async findAllOrders() {
     return this.prisma.order.findMany({
       include: {
@@ -20,9 +22,11 @@ export class AdminOrdersService {
     });
   }
 
-  // 2️⃣ Lister commandes pour un vendeur
+  /* -------------------------------------------------------------------------- */
+  /*                     2️⃣ Lister commandes pour un vendeur                   */
+  /* -------------------------------------------------------------------------- */
   async findOrdersForVendor(vendorUserId: number) {
-    const vendor = await this.prisma.vendorProfile.findUnique({ where: { userId: vendorUserId } });
+    const vendor = await this.prisma.vendorProfile.findFirst({ where: { userId: vendorUserId } });
     if (!vendor) return [];
 
     return this.prisma.order.findMany({
@@ -37,15 +41,27 @@ export class AdminOrdersService {
     });
   }
 
-  // 3️⃣ Mise à jour du statut d'une commande
+  /* -------------------------------------------------------------------------- */
+  /*                     3️⃣ Mise à jour du statut d'une commande              */
+  /* -------------------------------------------------------------------------- */
   async updateOrderStatus(orderId: number, status: OrderStatus) {
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Commande introuvable');
 
-    return this.prisma.order.update({ where: { id: orderId }, data: { status } });
+    return this.prisma.order.update({
+      where: { id: orderId },
+      data: { status },
+      include: {
+        items: true,
+        address: true,
+        shipment: true,
+      },
+    });
   }
 
-  // 4️⃣ Récupérer un paiement par référence
+  /* -------------------------------------------------------------------------- */
+  /*                     4️⃣ Récupérer un paiement par référence               */
+  /* -------------------------------------------------------------------------- */
   async findPaymentByReference(reference: string) {
     if (!reference.startsWith('PAY-')) throw new BadRequestException('Référence invalide');
 
@@ -56,11 +72,41 @@ export class AdminOrdersService {
     });
   }
 
-  // 5️⃣ Récupérer tous les paiements d'une commande
+  /* -------------------------------------------------------------------------- */
+  /*                     5️⃣ Récupérer tous les paiements d'une commande       */
+  /* -------------------------------------------------------------------------- */
   async findPaymentsByOrder(orderId: number) {
     return this.prisma.payment.findMany({
       where: { orderId },
       include: { attempts: true },
     });
   }
+
+  /* -------------------------------------------------------------------------- */
+  /*                     6️⃣ Supprimer complètement une commande               */
+  /* -------------------------------------------------------------------------- */
+  async deleteOrderByAdmin(orderId: number) {
+  const order = await this.prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: true, shipment: true },
+  });
+  if (!order) throw new NotFoundException('Commande introuvable');
+
+  return this.prisma.$transaction(async (tx) => {
+    // 1️⃣ Supprimer les items
+    await tx.orderItem.deleteMany({ where: { orderId } });
+
+    // Suppromer la facture
+          await tx.invoice.deleteMany({ where: { orderId } });
+          
+    // 2️⃣ Supprimer les shipments
+    await tx.shipment.deleteMany({ where: { orderId } });
+
+    // 3️⃣ Supprimer les paiements associés
+    await tx.payment.deleteMany({ where: { orderId } });
+
+    // 4️⃣ Supprimer la commande
+    return tx.order.delete({ where: { id: orderId } });
+  });
+}
 }

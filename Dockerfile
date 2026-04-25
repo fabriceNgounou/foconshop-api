@@ -27,5 +27,5 @@ COPY --from=builder /app/package*.json ./
 ENV NODE_ENV=production
 EXPOSE 3000
 
-# D'ABORD appliquer les migrations, PUIS démarrer l'application
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+# PUIS démarrer l'application
+CMD ["node", "dist/main.js"]
