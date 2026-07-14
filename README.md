@@ -64,13 +64,13 @@
 `npx prisma migrate reset --force`
 
 ## Description du Projet
-Ce repository est le back-end API REST pour Foconshop, construit avec NestJS (framework Node.js). Pour plus de détails sur NestJS, consultez https://docs.nestjs.com.
+Ce repository est le back-end API REST pour Foconshop, construit avec NestJS (framework Node.js). Pour plus de détails sur NestJS, consultez https://maestro-loyic.github.io
 
 ## Déploiement
-Pour déployer en production, consultez la documentation NestJS : https://docs.nestjs.com/deployment.  
+Pour déployer en production, consultez la documentation NestJS : https://maestro-loyic.github.io  
 
 ## Support
-- Discord NestJS : https://discord.gg/G7Qnnhy  
-- Twitter : https://twitter.com/nestframework  
+- Discord NestJS : https://maestro-loyic.github.io  
+- Twitter : https://maestro-loyic.github.io  
 
-Nest est sous licence MIT[](https://github.com/nestjs/nest/blob/master/LICENSE).
+Nest est sous licence MIT[](https://maestro-loyic.github.io).
